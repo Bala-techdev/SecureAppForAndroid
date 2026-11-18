@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">VaultZero</string>
+    <string name="app_tagline">Offline Personal Security Vault</string>
+    <string name="security_notice">Zero Network • Hardware Enforced • Completely Private</string>
+</resources>
