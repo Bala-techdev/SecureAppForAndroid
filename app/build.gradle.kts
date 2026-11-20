@@ -98,6 +98,9 @@ dependencies {
     // Google Tink Cryptography
     implementation("com.google.crypto.tink:tink-android:1.13.0")
 
+    // Cryptography & Password Hashing (Argon2id)
+    implementation(files("libs/bcprov-jdk18on-1.85.jar"))
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
