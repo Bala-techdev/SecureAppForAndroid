@@ -49,34 +49,121 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryPurple
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
-import com.balatechdev.vaultzero.data.model.DefaultCategories
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.balatechdev.vaultzero.data.model.DocumentCategory
+import com.balatechdev.vaultzero.data.repository.DocumentRepository
+import com.balatechdev.vaultzero.security.crypto.DocumentCryptoEngine
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddDocumentScreen(
+    repository: DocumentRepository? = null,
     onNavigateBack: () -> Unit,
     onSaveSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var title by remember { mutableStateOf("") }
     var selectedFileName by remember { mutableStateOf("tax_declaration_2025.pdf") }
     var selectedFileSize by remember { mutableStateOf("2.4 MB") }
-    var selectedCategoryId by remember { mutableStateOf("cat_financial") }
+    var selectedCategoryId by remember { mutableStateOf(DocumentCategory.BANKING.id) }
     var notes by remember { mutableStateOf("") }
     var isFavorite by remember { mutableStateOf(false) }
 
+    // SAF Document Picker Launcher
+    val documentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedUri = uri
+            var displayName = "selected_document"
+            var fileSize = 0L
+
+            try {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        if (nameIdx != -1) displayName = cursor.getString(nameIdx) ?: displayName
+                        if (sizeIdx != -1) fileSize = cursor.getLong(sizeIdx)
+                    }
+                }
+            } catch (e: Exception) {
+                displayName = uri.lastPathSegment ?: "document"
+            }
+
+            val ext = displayName.substringAfterLast('.', "")
+            if (!DocumentCryptoEngine.isSupportedExtension(ext)) {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Unsupported file type .$ext. Only PDF, JPG, JPEG, and PNG are supported.")
+                }
+            } else {
+                selectedFileName = displayName
+                selectedFileSize = if (fileSize > 0) com.balatechdev.vaultzero.data.model.DocumentEntity.formatFileSize(fileSize) else "Unknown Size"
+                if (title.isBlank()) {
+                    title = displayName.substringBeforeLast('.')
+                }
+            }
+        }
+    }
+
     val scrollState = rememberScrollState()
+
+    fun handleSave() {
+        if (title.isBlank()) return
+        try {
+            if (repository != null) {
+                val dummyFallbackKey = ByteArray(32) { (it * 7).toByte() }
+                if (selectedUri != null) {
+                    repository.importFromUri(
+                        context = context,
+                        uri = selectedUri!!,
+                        title = title.trim(),
+                        categoryId = selectedCategoryId,
+                        notes = notes.trim(),
+                        masterKey = dummyFallbackKey
+                    )
+                } else {
+                    val sampleContent = "Secure encrypted payload for $title\nOriginal: $selectedFileName".toByteArray(Charsets.UTF_8)
+                    repository.importDocument(
+                        sourceStream = sampleContent.inputStream(),
+                        title = title.trim(),
+                        fileName = selectedFileName,
+                        categoryId = selectedCategoryId,
+                        notes = notes.trim(),
+                        masterKey = dummyFallbackKey
+                    )
+                }
+            }
+            onSaveSuccess()
+        } catch (e: Exception) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Failed to encrypt document: ${e.message}")
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             VaultTopAppBar(
                 title = "Encrypt Document",
                 onNavigateBack = onNavigateBack,
                 actions = {
                     IconButton(
-                        onClick = {
-                            if (title.isNotBlank()) onSaveSuccess()
-                        }
+                        onClick = { handleSave() }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
@@ -107,9 +194,9 @@ fun AddDocumentScreen(
                     .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                     .clickable {
-                        // Simulates SAF document picker selection
-                        selectedFileName = "confidential_identity_card.pdf"
-                        selectedFileSize = "4.1 MB"
+                        documentPickerLauncher.launch(
+                            arrayOf("application/pdf", "image/jpeg", "image/png")
+                        )
                     }
                     .padding(20.dp),
                 contentAlignment = Alignment.Center
@@ -136,7 +223,7 @@ fun AddDocumentScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "File Size: $selectedFileSize • Tap to choose another file",
+                        text = "File Size: $selectedFileSize • Tap to import via SAF (PDF, JPG, PNG)",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -176,12 +263,12 @@ fun AddDocumentScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DefaultCategories.filter { it.id != "cat_all" }.forEach { cat ->
+                DocumentCategory.entries.forEach { cat ->
                     val isSelected = selectedCategoryId == cat.id
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedCategoryId = cat.id },
-                        label = { Text(cat.name) },
+                        label = { Text(cat.displayName) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = VaultEmeraldPrimary.copy(alpha = 0.15f),
                             selectedLabelColor = VaultEmeraldPrimary

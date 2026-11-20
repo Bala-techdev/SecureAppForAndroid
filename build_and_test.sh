@@ -52,11 +52,32 @@ $JAVA_BIN -cp "$KOTLINC_CP" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
   SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/database/SQLCipherSchema.kt \
   SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/database/EncryptedCredentialDatabase.kt \
   SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/repository/CredentialRepository.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/totp/Base32.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/totp/TotpAlgorithm.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/totp/TotpConfig.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/totp/TotpCode.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/totp/TotpGenerator.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/totp/TotpService.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/model/DocumentItem.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/model/DocumentEntity.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/crypto/DocumentCryptoEngine.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/database/EncryptedDocumentDatabase.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/data/repository/DocumentRepository.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/biometric/BiometricTypes.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/biometric/BiometricKeyManager.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/biometric/BiometricAuthService.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/recovery/Bip39WordList.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/recovery/Bip39Mnemonic.kt \
+  SecureAppForAndroid/app/src/main/java/com/balatechdev/vaultzero/security/recovery/VaultRecoveryService.kt \
   SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/foundation/FoundationUnitTest.kt \
   SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/security/auth/VaultAuthUnitTest.kt \
   SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/security/crypto/VaultCryptoUnitTest.kt \
   SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/data/database/CredentialDatabaseUnitTest.kt \
-  SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/data/repository/CredentialRepositoryUnitTest.kt
+  SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/data/repository/CredentialRepositoryUnitTest.kt \
+  SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/security/totp/TotpUnitTest.kt \
+  SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/data/repository/DocumentVaultUnitTest.kt \
+  SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/security/biometric/BiometricAuthUnitTest.kt \
+  SecureAppForAndroid/app/src/test/java/com/balatechdev/vaultzero/security/recovery/VaultRecoveryUnitTest.kt
 
 RUNNER_CP="$BUILD_DIR:$COMPILER_CP"
 
@@ -74,5 +95,17 @@ $JAVA_BIN -cp "$RUNNER_CP" org.junit.runner.JUnitCore com.balatechdev.vaultzero.
 
 echo "=== Running CredentialRepositoryUnitTest ==="
 $JAVA_BIN -cp "$RUNNER_CP" org.junit.runner.JUnitCore com.balatechdev.vaultzero.data.repository.CredentialRepositoryUnitTest
+
+echo "=== Running TotpUnitTest ==="
+$JAVA_BIN -cp "$RUNNER_CP" org.junit.runner.JUnitCore com.balatechdev.vaultzero.security.totp.TotpUnitTest
+
+echo "=== Running DocumentVaultUnitTest ==="
+$JAVA_BIN -cp "$RUNNER_CP" org.junit.runner.JUnitCore com.balatechdev.vaultzero.data.repository.DocumentVaultUnitTest
+
+echo "=== Running BiometricAuthUnitTest ==="
+$JAVA_BIN -cp "$RUNNER_CP" org.junit.runner.JUnitCore com.balatechdev.vaultzero.security.biometric.BiometricAuthUnitTest
+
+echo "=== Running VaultRecoveryUnitTest ==="
+$JAVA_BIN -cp "$RUNNER_CP" org.junit.runner.JUnitCore com.balatechdev.vaultzero.security.recovery.VaultRecoveryUnitTest
 
 echo "=== All Tests Passed Successfully ==="

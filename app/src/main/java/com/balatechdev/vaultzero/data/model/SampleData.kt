@@ -10,6 +10,7 @@ object SampleData {
             websiteUrl = "https://mail.proton.me",
             categoryId = "cat_logins",
             notes = "Primary encrypted communication mail",
+            totpSecret = "JBSWY3DPEHPK3PXP",
             isFavorite = true,
             passwordStrength = PasswordStrength.STRONG,
             lastModified = "Today, 11:15 AM"
@@ -22,6 +23,7 @@ object SampleData {
             websiteUrl = "https://github.com",
             categoryId = "cat_logins",
             notes = "Work & open-source developer account. Hardware 2FA key enabled.",
+            totpSecret = "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
             isFavorite = true,
             passwordStrength = PasswordStrength.STRONG,
             lastModified = "Nov 15, 2026"

@@ -47,15 +47,60 @@ import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.data.model.SampleData
 import kotlinx.coroutines.launch
 
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import com.balatechdev.vaultzero.data.model.toCredentialItem
+import com.balatechdev.vaultzero.data.repository.CredentialRepository
+import com.balatechdev.vaultzero.security.clipboard.SecureClipboard
+import com.balatechdev.vaultzero.security.totp.TotpConfig
+import com.balatechdev.vaultzero.security.totp.TotpGenerator
+import com.balatechdev.vaultzero.security.totp.TotpService
+import kotlinx.coroutines.delay
+
 @Composable
 fun CredentialDetailsScreen(
     credentialId: String,
+    repository: CredentialRepository? = null,
+    clipboard: SecureClipboard? = null,
+    totpService: TotpService? = null,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val credential = SampleData.sampleCredentials.find { it.id == credentialId }
+    val credential = repository?.getCredentialById(credentialId)?.toCredentialItem()
+        ?: SampleData.sampleCredentials.find { it.id == credentialId }
         ?: SampleData.sampleCredentials.first()
+
+    val rawTotpSecret = repository?.getCredentialById(credentialId)?.totpSecret
+        ?: credential.totpSecret
+        ?: ""
+
+    var currentOtpCode by remember { mutableStateOf("------") }
+    var remainingSeconds by remember { mutableIntStateOf(30) }
+    var countdownProgress by remember { mutableFloatStateOf(1.0f) }
+
+    LaunchedEffect(rawTotpSecret) {
+        if (rawTotpSecret.isNotBlank()) {
+            val config = TotpConfig(
+                issuer = credential.title,
+                accountName = credential.username,
+                secret = rawTotpSecret
+            )
+            while (true) {
+                val nowSec = System.currentTimeMillis() / 1000L
+                val totp = TotpGenerator.generateTotp(config, nowSec)
+                currentOtpCode = totp.formattedCode
+                remainingSeconds = totp.remainingSeconds
+                countdownProgress = totp.progress
+                delay(1000L)
+            }
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -150,8 +195,9 @@ fun CredentialDetailsScreen(
                     )
                     IconButton(
                         onClick = {
+                            clipboard?.copySensitive(label = "Username", content = credential.username)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Username copied to secure clipboard")
+                                snackbarHostState.showSnackbar("Username copied to secure clipboard (auto-clearing in 30s)")
                             }
                         }
                     ) {
@@ -176,13 +222,75 @@ fun CredentialDetailsScreen(
                 MaskedPasswordRow(
                     passwordPlain = credential.passwordPlain,
                     onCopyClicked = {
+                        clipboard?.copySensitive(label = "Password", content = credential.passwordPlain)
                         scope.launch {
-                            snackbarHostState.showSnackbar("Password copied (auto-clearing in 30s)")
+                            snackbarHostState.showSnackbar("Password copied to secure clipboard (auto-clearing in 30s)")
                         }
                     }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 PasswordStrengthMeter(strength = credential.passwordStrength)
+            }
+
+            // TOTP Authenticator Card
+            if (rawTotpSecret.isNotBlank()) {
+                VaultCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "TIME-BASED AUTH CODE (TOTP)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${remainingSeconds}s",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else VaultEmeraldPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = currentOtpCode,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 3.sp
+                            ),
+                            color = VaultEmeraldPrimary
+                        )
+                        IconButton(
+                            onClick = {
+                                val cleanCode = currentOtpCode.replace(" ", "")
+                                clipboard?.copySensitive(label = "OTP Code", content = cleanCode)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("OTP code copied (clears in 30s)")
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy OTP Code",
+                                tint = VaultEmeraldPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { countdownProgress },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                        color = if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else VaultEmeraldPrimary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                }
             }
 
             // Website URL Card

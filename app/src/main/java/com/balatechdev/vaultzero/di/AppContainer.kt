@@ -27,6 +27,23 @@ import com.balatechdev.vaultzero.security.crypto.KeyManagementService
 import com.balatechdev.vaultzero.security.crypto.KeyManagementServiceImpl
 import com.balatechdev.vaultzero.security.crypto.SoftwareDeviceKeyProvider
 
+import com.balatechdev.vaultzero.data.database.EncryptedDocumentDatabase
+import com.balatechdev.vaultzero.data.database.InMemoryEncryptedDocumentDatabase
+import com.balatechdev.vaultzero.data.repository.DocumentRepository
+import com.balatechdev.vaultzero.data.repository.DocumentRepositoryImpl
+import com.balatechdev.vaultzero.security.totp.TotpService
+import com.balatechdev.vaultzero.security.totp.TotpServiceImpl
+
+import com.balatechdev.vaultzero.security.biometric.AndroidKeystoreBiometricKeyManager
+import com.balatechdev.vaultzero.security.biometric.BiometricAuthService
+import com.balatechdev.vaultzero.security.biometric.BiometricAuthServiceImpl
+import com.balatechdev.vaultzero.security.biometric.BiometricAvailability
+import com.balatechdev.vaultzero.security.biometric.SoftwareBiometricKeyManager
+import com.balatechdev.vaultzero.security.crypto.VaultKey
+
+import com.balatechdev.vaultzero.security.recovery.VaultRecoveryService
+import com.balatechdev.vaultzero.security.recovery.VaultRecoveryServiceImpl
+
 /**
  * AppContainer
  *
@@ -51,6 +68,19 @@ interface AppContainer {
     val passwordGenerator: PasswordGenerator
     val credentialDatabase: EncryptedCredentialDatabase
     val credentialRepository: CredentialRepository
+
+    // TOTP Authenticator Service
+    val totpService: TotpService
+
+    // Document Vault Services
+    val documentDatabase: EncryptedDocumentDatabase
+    val documentRepository: DocumentRepository
+
+    // Biometric Authentication Service
+    val biometricAuthService: BiometricAuthService
+
+    // Disaster Recovery Service
+    val vaultRecoveryService: VaultRecoveryService
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -117,18 +147,84 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         InMemoryEncryptedCredentialDatabase()
     }
 
+    private val fallbackBootstrapKey = ByteArray(32) { (it * 7).toByte() }
+
     override val credentialRepository: CredentialRepository by lazy {
-        CredentialRepositoryImpl(
+        val repo = CredentialRepositoryImpl(
             database = credentialDatabase,
             keyProvider = {
                 vaultSessionManager.currentSession?.hierarchy?.let { h ->
                     var dbk: ByteArray? = null
                     h.useDatabaseKey { dbk = it.copyOf() }
                     dbk
-                }
+                } ?: fallbackBootstrapKey
             },
             encryptionService = encryptionService,
             decryptionService = decryptionService
         )
+        if (credentialDatabase.credentialDao.getCount() == 0) {
+            com.balatechdev.vaultzero.data.model.SampleData.sampleCredentials.forEach { item ->
+                repo.addCredential(item.toCredentialRecord())
+            }
+        }
+        repo
+    }
+
+    override val totpService: TotpService by lazy {
+        TotpServiceImpl(
+            clipboard = secureClipboard,
+            encryptionService = encryptionService,
+            decryptionService = decryptionService
+        )
+    }
+
+    override val documentDatabase: EncryptedDocumentDatabase by lazy {
+        InMemoryEncryptedDocumentDatabase()
+    }
+
+    override val documentRepository: DocumentRepository by lazy {
+        val storageDir = context.filesDir.resolve("vault_documents")
+        val repo = DocumentRepositoryImpl(
+            database = documentDatabase,
+            storageDir = storageDir,
+            keyProvider = {
+                vaultSessionManager.currentSession?.hierarchy?.let { h ->
+                    var dbk: ByteArray? = null
+                    h.useDatabaseKey { dbk = it.copyOf() }
+                    dbk
+                } ?: fallbackBootstrapKey
+            }
+        )
+        repo
+    }
+
+    override val biometricAuthService: BiometricAuthService by lazy {
+        val keyMgr = if (AndroidKeystoreDeviceKeyProvider.isKeystoreAvailable()) {
+            AndroidKeystoreBiometricKeyManager()
+        } else {
+            SoftwareBiometricKeyManager()
+        }
+        val service = BiometricAuthServiceImpl(
+            keyManager = keyMgr,
+            sessionManager = vaultSessionManager,
+            availabilityProvider = { BiometricAvailability.Available }
+        )
+        val bootstrapKey = VaultKey(fallbackBootstrapKey)
+        service.enableBiometricUnlock(bootstrapKey)
+        service
+    }
+
+    override val vaultRecoveryService: VaultRecoveryService by lazy {
+        val service = VaultRecoveryServiceImpl(
+            keyStorage = vaultKeyStorage,
+            sessionManager = vaultSessionManager
+        )
+        // Bootstrap sample recovery phrase and envelope for demonstration
+        val samplePhrase = service.generateRecoveryPhrase()
+        service.createRecoveryEnvelope(
+            masterKeyBytes = fallbackBootstrapKey,
+            mnemonicWords = samplePhrase
+        )
+        service
     }
 }

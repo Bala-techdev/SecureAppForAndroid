@@ -122,3 +122,32 @@ data class CredentialRecord(
         return result
     }
 }
+
+fun CredentialRecord.toCredentialItem(): CredentialItem = CredentialItem(
+    id = id,
+    title = title,
+    username = username,
+    passwordPlain = passwordString,
+    passwordMasked = "••••••••••••••••",
+    websiteUrl = website,
+    categoryId = categoryId,
+    notes = notes,
+    totpSecret = totpSecret,
+    isFavorite = isFavorite,
+    passwordStrength = passwordStrength,
+    lastModified = "Recently"
+)
+
+fun CredentialItem.toCredentialRecord(): CredentialRecord = CredentialRecord(
+    id = id,
+    title = title,
+    username = username,
+    passwordChars = passwordPlain.toCharArray(),
+    website = websiteUrl,
+    notes = notes,
+    totpSecret = totpSecret,
+    categoryId = categoryId,
+    isFavorite = isFavorite,
+    passwordStrength = passwordStrength
+)
+

@@ -46,12 +46,19 @@ import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryPurple
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityWarning
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.runtime.collectAsState
+import com.balatechdev.vaultzero.data.model.DocumentCategory
 import com.balatechdev.vaultzero.data.model.DocumentItem
 import com.balatechdev.vaultzero.data.model.SampleData
+import com.balatechdev.vaultzero.data.repository.DocumentRepository
 
 @Composable
 fun DocumentVaultScreen(
     currentRoute: String,
+    repository: DocumentRepository? = null,
     onNavigateToRoute: (String) -> Unit,
     onNavigateToAddDocument: () -> Unit,
     onNavigateToDocumentPreview: (String) -> Unit,
@@ -59,12 +66,29 @@ fun DocumentVaultScreen(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    val allDocuments = SampleData.sampleDocuments
+    var selectedCategoryId by remember { mutableStateOf("cat_all") }
+
+    val dbItems by repository?.documentsFlow?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList()) }
+
+    val allDocuments = if (repository != null) {
+        val list = if (dbItems.isEmpty()) repository.getAllDocuments() else dbItems
+        if (list.isEmpty()) {
+            SampleData.sampleDocuments
+        } else {
+            list.map { it.toDocumentItem() }
+        }
+    } else {
+        SampleData.sampleDocuments
+    }
 
     val filteredList = allDocuments.filter { doc ->
-        searchQuery.isBlank() ||
+        val matchesCategory = selectedCategoryId == "cat_all" || doc.categoryId == selectedCategoryId
+        val matchesQuery = searchQuery.isBlank() ||
                 doc.title.contains(searchQuery, ignoreCase = true) ||
-                doc.fileName.contains(searchQuery, ignoreCase = true)
+                doc.fileName.contains(searchQuery, ignoreCase = true) ||
+                doc.notes.contains(searchQuery, ignoreCase = true)
+        matchesCategory && matchesQuery
     }
 
     Scaffold(
@@ -115,7 +139,35 @@ fun DocumentVaultScreen(
                 placeholderText = "Search encrypted files, IDs..."
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Document Category Chips
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(
+                        selected = selectedCategoryId == "cat_all",
+                        onClick = { selectedCategoryId = "cat_all" },
+                        label = { Text("All") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = VaultEmeraldPrimary.copy(alpha = 0.15f),
+                            selectedLabelColor = VaultEmeraldPrimary
+                        )
+                    )
+                }
+                items(DocumentCategory.entries.toTypedArray()) { cat ->
+                    FilterChip(
+                        selected = selectedCategoryId == cat.id,
+                        onClick = { selectedCategoryId = cat.id },
+                        label = { Text(cat.displayName) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = VaultEmeraldPrimary.copy(alpha = 0.15f),
+                            selectedLabelColor = VaultEmeraldPrimary
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (filteredList.isEmpty()) {
                 EmptyStateView(

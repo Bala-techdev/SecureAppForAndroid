@@ -85,6 +85,8 @@ fun VaultNavGraph(
         // 5. Unlock Screen
         composable(Screen.Unlock.route) {
             UnlockScreen(
+                authService = appContainer.vaultAuthService,
+                biometricAuthService = appContainer.biometricAuthService,
                 onUnlockSuccessful = {
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Unlock.route) { inclusive = true }
@@ -100,6 +102,8 @@ fun VaultNavGraph(
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 currentRoute = currentRoute ?: Screen.Dashboard.route,
+                repository = appContainer.credentialRepository,
+                documentRepository = appContainer.documentRepository,
                 onNavigateToRoute = { route ->
                     if (route != Screen.Dashboard.route) {
                         navController.navigate(route) {
@@ -124,6 +128,7 @@ fun VaultNavGraph(
         composable(Screen.CredentialVault.route) {
             CredentialVaultScreen(
                 currentRoute = currentRoute ?: Screen.CredentialVault.route,
+                repository = appContainer.credentialRepository,
                 onNavigateToRoute = { route ->
                     navController.navigate(route) { launchSingleTop = true }
                 },
@@ -132,6 +137,7 @@ fun VaultNavGraph(
                     navController.navigate(Screen.CredentialDetails.createRoute(id))
                 },
                 onLockVault = {
+                    appContainer.vaultSessionManager.lock()
                     navController.navigate(Screen.Unlock.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = true }
                     }
@@ -142,6 +148,8 @@ fun VaultNavGraph(
         // 8. Add Credential Screen
         composable(Screen.AddCredential.route) {
             AddCredentialScreen(
+                repository = appContainer.credentialRepository,
+                passwordGenerator = appContainer.passwordGenerator,
                 onNavigateBack = { navController.popBackStack() },
                 onSaveSuccess = { navController.popBackStack() }
             )
@@ -155,6 +163,8 @@ fun VaultNavGraph(
             val credentialId = backStackEntry.arguments?.getString("credentialId") ?: ""
             EditCredentialScreen(
                 credentialId = credentialId,
+                repository = appContainer.credentialRepository,
+                passwordGenerator = appContainer.passwordGenerator,
                 onNavigateBack = { navController.popBackStack() },
                 onUpdateSuccess = { navController.popBackStack() },
                 onDeleteSuccess = {
@@ -171,6 +181,9 @@ fun VaultNavGraph(
             val credentialId = backStackEntry.arguments?.getString("credentialId") ?: ""
             CredentialDetailsScreen(
                 credentialId = credentialId,
+                repository = appContainer.credentialRepository,
+                clipboard = appContainer.secureClipboard,
+                totpService = appContainer.totpService,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEdit = { id ->
                     navController.navigate(Screen.EditCredential.createRoute(id))
@@ -182,6 +195,7 @@ fun VaultNavGraph(
         composable(Screen.DocumentVault.route) {
             DocumentVaultScreen(
                 currentRoute = currentRoute ?: Screen.DocumentVault.route,
+                repository = appContainer.documentRepository,
                 onNavigateToRoute = { route ->
                     navController.navigate(route) { launchSingleTop = true }
                 },
@@ -200,6 +214,7 @@ fun VaultNavGraph(
         // 12. Add Document Screen
         composable(Screen.AddDocument.route) {
             AddDocumentScreen(
+                repository = appContainer.documentRepository,
                 onNavigateBack = { navController.popBackStack() },
                 onSaveSuccess = { navController.popBackStack() }
             )
@@ -213,6 +228,7 @@ fun VaultNavGraph(
             val documentId = backStackEntry.arguments?.getString("documentId") ?: ""
             DocumentPreviewScreen(
                 documentId = documentId,
+                repository = appContainer.documentRepository,
                 onNavigateBack = { navController.popBackStack() },
                 onDeleteSuccess = { navController.popBackStack() }
             )
@@ -243,6 +259,8 @@ fun VaultNavGraph(
         // 16. Security Settings Screen
         composable(Screen.SecuritySettings.route) {
             SecuritySettingsScreen(
+                biometricAuthService = appContainer.biometricAuthService,
+                sessionManager = appContainer.vaultSessionManager,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -257,7 +275,13 @@ fun VaultNavGraph(
         // 18. Recovery Screen
         composable(Screen.Recovery.route) {
             RecoveryScreen(
-                onNavigateBack = { navController.popBackStack() }
+                recoveryService = appContainer.vaultRecoveryService,
+                onNavigateBack = { navController.popBackStack() },
+                onRecoverySuccess = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Unlock.route) { inclusive = true }
+                    }
+                }
             )
         }
     }

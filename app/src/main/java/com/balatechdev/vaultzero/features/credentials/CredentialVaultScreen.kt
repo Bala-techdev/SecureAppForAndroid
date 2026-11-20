@@ -46,12 +46,17 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityWarning
+import com.balatechdev.vaultzero.data.model.CredentialItem
 import com.balatechdev.vaultzero.data.model.DefaultCategories
 import com.balatechdev.vaultzero.data.model.SampleData
+import com.balatechdev.vaultzero.data.model.toCredentialItem
+import com.balatechdev.vaultzero.data.repository.CredentialRepository
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun CredentialVaultScreen(
     currentRoute: String,
+    repository: CredentialRepository? = null,
     onNavigateToRoute: (String) -> Unit,
     onNavigateToAddCredential: () -> Unit,
     onNavigateToCredentialDetails: (String) -> Unit,
@@ -61,7 +66,18 @@ fun CredentialVaultScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("cat_all") }
 
-    val allCredentials = SampleData.sampleCredentials
+    val repositoryItems by repository?.credentialsFlow?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList()) }
+
+    val allCredentials: List<CredentialItem> = if (repository != null) {
+        if (repositoryItems.isEmpty()) {
+            repository.loadAll().map { it.toCredentialItem() }
+        } else {
+            repositoryItems.map { it.toCredentialItem() }
+        }
+    } else {
+        SampleData.sampleCredentials
+    }
 
     val filteredList = allCredentials.filter { item ->
         val matchesCategory = selectedCategory == "cat_all" || item.categoryId == selectedCategory

@@ -9,6 +9,7 @@ data class CredentialItem(
     val websiteUrl: String = "",
     val categoryId: String = "cat_logins",
     val notes: String = "",
+    val totpSecret: String? = null,
     val isFavorite: Boolean = false,
     val passwordStrength: PasswordStrength = PasswordStrength.STRONG,
     val lastModified: String = "Today, 10:45 AM"

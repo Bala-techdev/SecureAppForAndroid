@@ -57,11 +57,17 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.data.model.DefaultCategories
+import com.balatechdev.vaultzero.data.model.CredentialRecord
 import com.balatechdev.vaultzero.data.model.PasswordStrength
+import com.balatechdev.vaultzero.data.repository.CredentialRepository
+import com.balatechdev.vaultzero.security.crypto.PasswordGenerator
+import com.balatechdev.vaultzero.security.crypto.PasswordGeneratorRules
 import java.security.SecureRandom
 
 @Composable
 fun AddCredentialScreen(
+    repository: CredentialRepository? = null,
+    passwordGenerator: PasswordGenerator? = null,
     onNavigateBack: () -> Unit,
     onSaveSuccess: () -> Unit,
     modifier: Modifier = Modifier
@@ -71,6 +77,7 @@ fun AddCredentialScreen(
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var websiteUrl by remember { mutableStateOf("") }
+    var totpSecret by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf("cat_logins") }
     var isFavorite by remember { mutableStateOf(false) }
@@ -335,6 +342,17 @@ fun AddCredentialScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
+            // TOTP Authenticator Key / URI
+            OutlinedTextField(
+                value = totpSecret,
+                onValueChange = { totpSecret = it },
+                label = { Text("TOTP Authenticator Key (Base32 or URI)") },
+                singleLine = true,
+                placeholder = { Text("e.g. JBSWY3DPEHPK3PXP") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+
             // Notes
             OutlinedTextField(
                 value = notes,
@@ -350,7 +368,30 @@ fun AddCredentialScreen(
 
             Button(
                 onClick = {
-                    if (title.isNotBlank()) onSaveSuccess()
+                    if (title.isNotBlank()) {
+                        if (repository != null) {
+                            val parsedSecret = if (totpSecret.startsWith("otpauth://")) {
+                                com.balatechdev.vaultzero.security.totp.TotpConfig.parseUri(totpSecret.trim())?.secret ?: totpSecret.trim()
+                            } else if (totpSecret.isNotBlank()) {
+                                totpSecret.trim()
+                            } else {
+                                null
+                            }
+                            val record = CredentialRecord(
+                                title = title.trim(),
+                                username = username.trim(),
+                                passwordChars = password.toCharArray(),
+                                website = websiteUrl.trim(),
+                                notes = notes.trim(),
+                                totpSecret = parsedSecret,
+                                categoryId = selectedCategoryId,
+                                isFavorite = isFavorite,
+                                passwordStrength = strength
+                            )
+                            repository.addCredential(record)
+                        }
+                        onSaveSuccess()
+                    }
                 },
                 enabled = title.isNotBlank(),
                 modifier = Modifier

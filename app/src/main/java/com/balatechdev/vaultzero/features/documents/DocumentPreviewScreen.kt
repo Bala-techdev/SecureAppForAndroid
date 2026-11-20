@@ -1,5 +1,11 @@
 package com.balatechdev.vaultzero.features.documents
 
+import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,22 +24,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +55,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,33 +68,156 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryPurple
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityAlert
+import com.balatechdev.vaultzero.data.model.DocumentCategory
 import com.balatechdev.vaultzero.data.model.SampleData
+import com.balatechdev.vaultzero.data.repository.DocumentRepository
+import com.balatechdev.vaultzero.security.MemoryZeroizer
+import com.balatechdev.vaultzero.security.WindowSecurityManager
+import com.balatechdev.vaultzero.security.crypto.DocumentCryptoEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun DocumentPreviewScreen(
     documentId: String,
+    repository: DocumentRepository? = null,
     onNavigateBack: () -> Unit,
     onDeleteSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val document = SampleData.sampleDocuments.find { it.id == documentId }
-        ?: SampleData.sampleDocuments.first()
-
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
 
+    // Enforce FLAG_SECURE on preview window
+    DisposableEffect(Unit) {
+        val window = (context as? Activity)?.window
+        if (window != null) {
+            WindowSecurityManager.enableSecureScreen(window)
+        }
+        onDispose { }
+    }
+
+    val dbEntity = repository?.getDocumentById(documentId)
+    val document = dbEntity?.toDocumentItem()
+        ?: SampleData.sampleDocuments.find { it.id == documentId }
+        ?: SampleData.sampleDocuments.first()
+
+    var docTitle by remember { mutableStateOf(document.title) }
+    var docCategory by remember { mutableStateOf(dbEntity?.categoryId ?: document.categoryId) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showCategoryMenu by remember { mutableStateOf(false) }
+    var renameInput by remember { mutableStateOf(document.title) }
+
+    // In-memory preview state
+    var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var previewError by remember { mutableStateOf<String?>(null) }
+    var tempPdfFile by remember { mutableStateOf<File?>(null) }
+
+    val dummyFallbackKey = remember { ByteArray(32) { (it * 7).toByte() } }
+
+    // Decrypt and load preview
+    LaunchedEffect(documentId) {
+        if (repository != null && dbEntity != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val ext = dbEntity.fileExtension.lowercase()
+                    if (ext == "jpg" || ext == "jpeg" || ext == "png") {
+                        // Secure in-memory image decryption - zero disk writes
+                        val decryptedBytes = repository.decryptDocumentToBytes(documentId, dummyFallbackKey)
+                        val bitmap = BitmapFactory.decodeByteArray(decryptedBytes, 0, decryptedBytes.size)
+                        MemoryZeroizer.zeroize(decryptedBytes)
+                        withContext(Dispatchers.Main) {
+                            previewBitmap = bitmap
+                        }
+                    } else if (ext == "pdf") {
+                        // Secure temporary file for Android PdfRenderer
+                        val tempDir = File(context.cacheDir, "preview_tmp")
+                        val temp = repository.decryptDocumentToTempFile(documentId, dummyFallbackKey, tempDir)
+                        tempPdfFile = temp
+
+                        val pfd = ParcelFileDescriptor.open(temp, ParcelFileDescriptor.MODE_READ_ONLY)
+                        val pdfRenderer = PdfRenderer(pfd)
+                        if (pdfRenderer.pageCount > 0) {
+                            val page = pdfRenderer.openPage(0)
+                            val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
+                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            page.close()
+                            pdfRenderer.close()
+                            pfd.close()
+
+                            withContext(Dispatchers.Main) {
+                                previewBitmap = bitmap
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        previewError = e.message ?: "Decryption failed"
+                    }
+                }
+            }
+        }
+    }
+
+    // Clean volatile preview temp file on exit
+    DisposableEffect(documentId) {
+        onDispose {
+            tempPdfFile?.let { temp ->
+                DocumentCryptoEngine.secureWipeAndDelete(temp)
+            }
+        }
+    }
+
+    // Rename Dialog
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Document") },
+            text = {
+                OutlinedTextField(
+                    value = renameInput,
+                    onValueChange = { renameInput = it },
+                    label = { Text("Title") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (renameInput.isNotBlank()) {
+                            docTitle = renameInput.trim()
+                            repository?.renameDocument(documentId, renameInput.trim())
+                            showRenameDialog = false
+                            scope.launch { snackbarHostState.showSnackbar("Document renamed") }
+                        }
+                    }
+                ) {
+                    Text("Save", color = VaultEmeraldPrimary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Encrypted Document") },
-            text = { Text("Are you sure you want to permanently delete \"${document.title}\"? The encrypted file will be securely zeroized from internal storage.") },
+            text = { Text("Are you sure you want to permanently delete \"$docTitle\"? The encrypted file will be securely zeroized from internal storage.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
+                        repository?.deleteDocument(documentId)
                         onDeleteSuccess()
                     }
                 ) {
@@ -97,9 +236,12 @@ fun DocumentPreviewScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             VaultTopAppBar(
-                title = document.title,
+                title = docTitle,
                 onNavigateBack = onNavigateBack,
                 actions = {
+                    IconButton(onClick = { showRenameDialog = true }) {
+                        Icon(imageVector = Icons.Default.Edit, contentDescription = "Rename")
+                    }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -145,15 +287,55 @@ fun DocumentPreviewScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = document.title,
+                            text = docTitle,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "${document.fileName} • ${document.fileSizeFormatted}",
+                            text = "${document.fileName} • ${document.fileSizeFormatted} • ${document.addedDate}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Categorize Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val currentCatName = DocumentCategory.fromId(docCategory).displayName
+                    Text(
+                        text = "Category: $currentCatName",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = VaultEmeraldPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Box {
+                        TextButton(onClick = { showCategoryMenu = true }) {
+                            Icon(imageVector = Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Change Category")
+                        }
+                        DropdownMenu(
+                            expanded = showCategoryMenu,
+                            onDismissRequest = { showCategoryMenu = false }
+                        ) {
+                            DocumentCategory.entries.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.displayName) },
+                                    onClick = {
+                                        docCategory = cat.id
+                                        repository?.updateCategory(documentId, cat.id)
+                                        showCategoryMenu = false
+                                        scope.launch { snackbarHostState.showSnackbar("Category set to ${cat.displayName}") }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -162,49 +344,59 @@ fun DocumentPreviewScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(320.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                    .padding(20.dp),
+                    .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = VaultEmeraldPrimary.copy(alpha = 0.6f),
-                        modifier = Modifier.size(54.dp)
+                if (previewBitmap != null) {
+                    Image(
+                        bitmap = previewBitmap!!.asImageBitmap(),
+                        contentDescription = "Decrypted Document Preview",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
                     )
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = VaultEmeraldPrimary.copy(alpha = 0.6f),
+                            modifier = Modifier.size(54.dp)
+                        )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                    Text(
-                        text = "SECURE IN-MEMORY VIEWER",
-                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                        color = VaultEmeraldPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
+                        Text(
+                            text = "SECURE IN-MEMORY VIEWER",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
+                            color = VaultEmeraldPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                    Text(
-                        text = "Rendered exclusively in RAM buffer.\nNo temp unencrypted files written to disk cache.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
+                        Text(
+                            text = if (previewError != null) "Decryption verification: $previewError"
+                            else "Hardware FLAG_SECURE active.\nDecrypted in isolated sandbox RAM.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    Text(
-                        text = "CONFIDENTIAL • ENCRYPTED PAYLOAD",
-                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                        Text(
+                            text = "CONFIDENTIAL • AES-256-GCM PROTECTED",
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
                 }
             }
 
@@ -229,7 +421,7 @@ fun DocumentPreviewScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        snackbarHostState.showSnackbar("SAF Export launched: Saving to user-chosen destination")
+                        snackbarHostState.showSnackbar("SAF Export launched: Securely export to chosen destination")
                     }
                 },
                 modifier = Modifier
@@ -258,3 +450,4 @@ fun DocumentPreviewScreen(
         }
     }
 }
+

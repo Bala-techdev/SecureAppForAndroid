@@ -48,18 +48,25 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityAlert
+import com.balatechdev.vaultzero.data.model.CredentialRecord
 import com.balatechdev.vaultzero.data.model.DefaultCategories
 import com.balatechdev.vaultzero.data.model.SampleData
+import com.balatechdev.vaultzero.data.model.toCredentialItem
+import com.balatechdev.vaultzero.data.repository.CredentialRepository
+import com.balatechdev.vaultzero.security.crypto.PasswordGenerator
 
 @Composable
 fun EditCredentialScreen(
     credentialId: String,
+    repository: CredentialRepository? = null,
+    passwordGenerator: PasswordGenerator? = null,
     onNavigateBack: () -> Unit,
     onUpdateSuccess: () -> Unit,
     onDeleteSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val existing = SampleData.sampleCredentials.find { it.id == credentialId }
+    val existing = repository?.getCredentialById(credentialId)?.toCredentialItem()
+        ?: SampleData.sampleCredentials.find { it.id == credentialId }
         ?: SampleData.sampleCredentials.first()
 
     var title by remember { mutableStateOf(existing.title) }
@@ -67,6 +74,7 @@ fun EditCredentialScreen(
     var password by remember { mutableStateOf(existing.passwordPlain) }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var websiteUrl by remember { mutableStateOf(existing.websiteUrl) }
+    var totpSecret by remember { mutableStateOf(existing.totpSecret ?: "") }
     var notes by remember { mutableStateOf(existing.notes) }
     var selectedCategoryId by remember { mutableStateOf(existing.categoryId) }
     var isFavorite by remember { mutableStateOf(existing.isFavorite) }
@@ -83,6 +91,7 @@ fun EditCredentialScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
+                        repository?.deleteCredential(credentialId)
                         onDeleteSuccess()
                     }
                 ) {
@@ -209,6 +218,17 @@ fun EditCredentialScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
+            // TOTP Authenticator Key / URI
+            OutlinedTextField(
+                value = totpSecret,
+                onValueChange = { totpSecret = it },
+                label = { Text("TOTP Authenticator Key (Base32 or URI)") },
+                singleLine = true,
+                placeholder = { Text("e.g. JBSWY3DPEHPK3PXP") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+
             // Notes
             OutlinedTextField(
                 value = notes,
@@ -223,7 +243,30 @@ fun EditCredentialScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = onUpdateSuccess,
+                onClick = {
+                    if (repository != null) {
+                        val parsedSecret = if (totpSecret.startsWith("otpauth://")) {
+                            com.balatechdev.vaultzero.security.totp.TotpConfig.parseUri(totpSecret.trim())?.secret ?: totpSecret.trim()
+                        } else if (totpSecret.isNotBlank()) {
+                            totpSecret.trim()
+                        } else {
+                            null
+                        }
+                        val record = CredentialRecord(
+                            id = credentialId,
+                            title = title.trim(),
+                            username = username.trim(),
+                            passwordChars = password.toCharArray(),
+                            website = websiteUrl.trim(),
+                            notes = notes.trim(),
+                            totpSecret = parsedSecret,
+                            categoryId = selectedCategoryId,
+                            isFavorite = isFavorite
+                        )
+                        repository.updateCredential(record)
+                    }
+                    onUpdateSuccess()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

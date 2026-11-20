@@ -52,9 +52,19 @@ import com.balatechdev.vaultzero.data.model.CredentialItem
 import com.balatechdev.vaultzero.data.model.SampleData
 import com.balatechdev.vaultzero.navigation.Screen
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.balatechdev.vaultzero.data.model.toCredentialItem
+import com.balatechdev.vaultzero.data.repository.CredentialRepository
+import com.balatechdev.vaultzero.data.repository.DocumentRepository
+
 @Composable
 fun DashboardScreen(
     currentRoute: String,
+    repository: CredentialRepository? = null,
+    documentRepository: DocumentRepository? = null,
     onNavigateToRoute: (String) -> Unit,
     onLockVault: () -> Unit,
     onNavigateToAddCredential: () -> Unit,
@@ -62,8 +72,26 @@ fun DashboardScreen(
     onNavigateToCredentialDetails: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val credentials = SampleData.sampleCredentials
-    val documents = SampleData.sampleDocuments
+    val repositoryItems by repository?.credentialsFlow?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList()) }
+
+    val docItems by documentRepository?.documentsFlow?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList()) }
+
+    val credentials = if (repository != null) {
+        if (repositoryItems.isEmpty()) {
+            repository.loadAll().map { it.toCredentialItem() }
+        } else {
+            repositoryItems.map { it.toCredentialItem() }
+        }
+    } else {
+        SampleData.sampleCredentials
+    }
+    val documents = if (documentRepository != null && docItems.isNotEmpty()) {
+        docItems.map { it.toDocumentItem() }
+    } else {
+        SampleData.sampleDocuments
+    }
     val securityStatus = SampleData.securityAudit
 
     Scaffold(

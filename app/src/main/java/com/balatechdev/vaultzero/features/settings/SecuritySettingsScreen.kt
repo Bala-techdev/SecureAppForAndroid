@@ -33,12 +33,20 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityAlert
 
+import com.balatechdev.vaultzero.security.auth.VaultSessionManager
+import com.balatechdev.vaultzero.security.biometric.BiometricAuthService
+import com.balatechdev.vaultzero.security.crypto.VaultKey
+
 @Composable
 fun SecuritySettingsScreen(
+    biometricAuthService: BiometricAuthService? = null,
+    sessionManager: VaultSessionManager? = null,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var biometricEnabled by remember { mutableStateOf(true) }
+    var biometricEnabled by remember {
+        mutableStateOf(biometricAuthService?.isBiometricUnlockEnrolled() ?: true)
+    }
     var autoLockTimeout by remember { mutableStateOf("1 Minute") }
     var lockOnScreenOff by remember { mutableStateOf(true) }
     var screenshotProtection by remember { mutableStateOf(true) }
@@ -51,6 +59,18 @@ fun SecuritySettingsScreen(
     val timeoutOptions = listOf("Immediately", "1 Minute", "5 Minutes", "15 Minutes", "Never")
     val clipboardOptions = listOf("15 Seconds", "30 Seconds", "60 Seconds", "Never")
 
+    fun updateAutoLock(option: String) {
+        autoLockTimeout = option
+        val millis = when (option) {
+            "Immediately" -> 0L
+            "1 Minute" -> 60_000L
+            "5 Minutes" -> 300_000L
+            "15 Minutes" -> 900_000L
+            else -> Long.MAX_VALUE
+        }
+        sessionManager?.timeoutDurationMillis = millis
+    }
+
     if (showTimeoutDialog) {
         AlertDialog(
             onDismissRequest = { showTimeoutDialog = false },
@@ -62,7 +82,7 @@ fun SecuritySettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    autoLockTimeout = option
+                                    updateAutoLock(option)
                                     showTimeoutDialog = false
                                 }
                                 .padding(vertical = 8.dp),
@@ -71,7 +91,7 @@ fun SecuritySettingsScreen(
                             RadioButton(
                                 selected = autoLockTimeout == option,
                                 onClick = {
-                                    autoLockTimeout = option
+                                    updateAutoLock(option)
                                     showTimeoutDialog = false
                                 },
                                 colors = RadioButtonDefaults.colors(selectedColor = VaultEmeraldPrimary)
@@ -165,7 +185,15 @@ fun SecuritySettingsScreen(
                         }
                         Switch(
                             checked = biometricEnabled,
-                            onCheckedChange = { biometricEnabled = it },
+                            onCheckedChange = { isEnabled ->
+                                biometricEnabled = isEnabled
+                                if (isEnabled) {
+                                    val dummyKey = VaultKey(ByteArray(32) { (it * 7).toByte() })
+                                    biometricAuthService?.enableBiometricUnlock(dummyKey)
+                                } else {
+                                    biometricAuthService?.disableBiometricUnlock()
+                                }
+                            },
                             colors = SwitchDefaults.colors(checkedThumbColor = VaultEmeraldPrimary)
                         )
                     }

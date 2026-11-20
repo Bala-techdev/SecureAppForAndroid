@@ -52,8 +52,16 @@ import androidx.compose.ui.unit.sp
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityAlert
 
+import com.balatechdev.vaultzero.security.auth.AuthResult
+import com.balatechdev.vaultzero.security.auth.VaultAuthService
+import com.balatechdev.vaultzero.security.biometric.BiometricAuthResult
+import com.balatechdev.vaultzero.security.biometric.BiometricAuthService
+import com.balatechdev.vaultzero.security.biometric.BiometricAvailability
+
 @Composable
 fun UnlockScreen(
+    authService: VaultAuthService? = null,
+    biometricAuthService: BiometricAuthService? = null,
     onUnlockSuccessful: () -> Unit,
     onEmergencyRecoveryClicked: () -> Unit,
     modifier: Modifier = Modifier
@@ -61,6 +69,80 @@ fun UnlockScreen(
     var passwordInput by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun handlePasswordUnlock() {
+        if (passwordInput.isBlank()) {
+            errorMessage = "Master Password required"
+            return
+        }
+
+        if (authService != null) {
+            val passChars = passwordInput.toCharArray()
+            val result = authService.unlockVault(passChars)
+            passChars.fill('0')
+            when (result) {
+                is AuthResult.Success -> {
+                    errorMessage = null
+                    onUnlockSuccessful()
+                }
+                is AuthResult.Failure -> {
+                    errorMessage = "Incorrect Master Password. Please check your credentials."
+                }
+            }
+        } else {
+            onUnlockSuccessful()
+        }
+    }
+
+    fun handleBiometricUnlock() {
+        if (biometricAuthService == null) {
+            onUnlockSuccessful()
+            return
+        }
+
+        val availability = biometricAuthService.canAuthenticate()
+        when (availability) {
+            is BiometricAvailability.NotEnrolled -> {
+                errorMessage = "No biometrics enrolled on this device. Please unlock with your Master Password."
+                return
+            }
+            is BiometricAvailability.HardwareUnavailable, is BiometricAvailability.NoHardware -> {
+                errorMessage = "Biometric hardware is unavailable. Please use Master Password."
+                return
+            }
+            else -> { /* Proceed */ }
+        }
+
+        biometricAuthService.authenticate { result ->
+            when (result) {
+                is BiometricAuthResult.Success -> {
+                    errorMessage = null
+                    onUnlockSuccessful()
+                }
+                is BiometricAuthResult.KeyInvalidated -> {
+                    errorMessage = "Biometrics changed on device! Keystore key was invalidated for your protection. Unlock with Master Password to re-enable."
+                }
+                is BiometricAuthResult.Failed -> {
+                    errorMessage = "Biometric not recognized. Please retry or enter your Master Password."
+                }
+                is BiometricAuthResult.Cancelled -> {
+                    errorMessage = "Biometric authentication cancelled."
+                }
+                is BiometricAuthResult.UserFallback -> {
+                    errorMessage = null
+                }
+                is BiometricAuthResult.NotEnrolled -> {
+                    errorMessage = "Biometrics not configured in VaultZero. Please unlock with Master Password."
+                }
+                is BiometricAuthResult.Unavailable -> {
+                    errorMessage = "Biometric sensor unavailable. Please use Master Password."
+                }
+                is BiometricAuthResult.Error -> {
+                    errorMessage = result.message
+                }
+            }
+        }
+    }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -169,10 +251,7 @@ fun UnlockScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = {
-                        if (passwordInput.isNotBlank()) onUnlockSuccessful()
-                        else errorMessage = "Master Password required"
-                    },
+                    onClick = { handlePasswordUnlock() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -192,7 +271,7 @@ fun UnlockScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedButton(
-                    onClick = onUnlockSuccessful, // Simulated biometric authentication
+                    onClick = { handleBiometricUnlock() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
