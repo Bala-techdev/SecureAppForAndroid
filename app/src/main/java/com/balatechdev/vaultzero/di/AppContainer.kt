@@ -1,17 +1,25 @@
 package com.balatechdev.vaultzero.di
 
 import android.content.Context
+import com.balatechdev.vaultzero.data.database.EncryptedCredentialDatabase
+import com.balatechdev.vaultzero.data.database.EncryptedDocumentDatabase
+import com.balatechdev.vaultzero.data.database.InMemoryEncryptedCredentialDatabase
+import com.balatechdev.vaultzero.data.database.InMemoryEncryptedDocumentDatabase
+import com.balatechdev.vaultzero.data.database.PersistentEncryptedCredentialDatabase
+import com.balatechdev.vaultzero.data.database.PersistentEncryptedDocumentDatabase
+import com.balatechdev.vaultzero.data.repository.CredentialRepository
+import com.balatechdev.vaultzero.data.repository.CredentialRepositoryImpl
+import com.balatechdev.vaultzero.data.repository.DocumentRepository
+import com.balatechdev.vaultzero.data.repository.DocumentRepositoryImpl
 import com.balatechdev.vaultzero.data.repository.VaultStatusRepository
 import com.balatechdev.vaultzero.data.repository.VaultStatusRepositoryImpl
+import com.balatechdev.vaultzero.security.auth.AndroidPersistentVaultKeyStorage
 import com.balatechdev.vaultzero.security.auth.InMemoryVaultKeyStorage
 import com.balatechdev.vaultzero.security.auth.VaultAuthService
 import com.balatechdev.vaultzero.security.auth.VaultAuthServiceImpl
 import com.balatechdev.vaultzero.security.auth.VaultKeyStorage
 import com.balatechdev.vaultzero.security.auth.VaultSessionManager
-import com.balatechdev.vaultzero.data.database.EncryptedCredentialDatabase
-import com.balatechdev.vaultzero.data.database.InMemoryEncryptedCredentialDatabase
-import com.balatechdev.vaultzero.data.repository.CredentialRepository
-import com.balatechdev.vaultzero.data.repository.CredentialRepositoryImpl
+import com.balatechdev.vaultzero.security.clipboard.AndroidSecureClipboard
 import com.balatechdev.vaultzero.security.clipboard.InMemorySecureClipboard
 import com.balatechdev.vaultzero.security.clipboard.SecureClipboard
 import com.balatechdev.vaultzero.security.crypto.PasswordGenerator
@@ -27,10 +35,6 @@ import com.balatechdev.vaultzero.security.crypto.KeyManagementService
 import com.balatechdev.vaultzero.security.crypto.KeyManagementServiceImpl
 import com.balatechdev.vaultzero.security.crypto.SoftwareDeviceKeyProvider
 
-import com.balatechdev.vaultzero.data.database.EncryptedDocumentDatabase
-import com.balatechdev.vaultzero.data.database.InMemoryEncryptedDocumentDatabase
-import com.balatechdev.vaultzero.data.repository.DocumentRepository
-import com.balatechdev.vaultzero.data.repository.DocumentRepositoryImpl
 import com.balatechdev.vaultzero.security.totp.TotpService
 import com.balatechdev.vaultzero.security.totp.TotpServiceImpl
 
@@ -41,6 +45,8 @@ import com.balatechdev.vaultzero.security.biometric.BiometricAvailability
 import com.balatechdev.vaultzero.security.biometric.SoftwareBiometricKeyManager
 import com.balatechdev.vaultzero.security.crypto.VaultKey
 
+import com.balatechdev.vaultzero.data.backup.VaultBackupService
+import com.balatechdev.vaultzero.data.backup.VaultBackupServiceImpl
 import com.balatechdev.vaultzero.security.recovery.VaultRecoveryService
 import com.balatechdev.vaultzero.security.recovery.VaultRecoveryServiceImpl
 
@@ -81,12 +87,20 @@ interface AppContainer {
 
     // Disaster Recovery Service
     val vaultRecoveryService: VaultRecoveryService
+
+    // Backup & Restore Service
+    val vaultBackupService: VaultBackupService
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val vaultKeyStorage: VaultKeyStorage by lazy {
-        InMemoryVaultKeyStorage()
+        try {
+            AndroidPersistentVaultKeyStorage(context.applicationContext)
+        } catch (e: Exception) {
+            // Test runner / environment without AndroidKeyStore SPI
+            InMemoryVaultKeyStorage()
+        }
     }
 
     override val vaultSessionManager: VaultSessionManager by lazy {
@@ -136,7 +150,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val secureClipboard: SecureClipboard by lazy {
-        InMemorySecureClipboard()
+        AndroidSecureClipboard(context.applicationContext)
     }
 
     override val passwordGenerator: PasswordGenerator by lazy {
@@ -144,30 +158,31 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val credentialDatabase: EncryptedCredentialDatabase by lazy {
-        InMemoryEncryptedCredentialDatabase()
+        PersistentEncryptedCredentialDatabase(
+            databaseFile = context.filesDir.resolve("vaultzero_credentials.encdb"),
+            keyProvider = {
+                vaultSessionManager.currentSession?.hierarchy?.let { h ->
+                    var dbk: ByteArray? = null
+                    h.useDatabaseKey { dbk = it.copyOf() }
+                    dbk
+                }
+            }
+        )
     }
 
-    private val fallbackBootstrapKey = ByteArray(32) { (it * 7).toByte() }
-
     override val credentialRepository: CredentialRepository by lazy {
-        val repo = CredentialRepositoryImpl(
+        CredentialRepositoryImpl(
             database = credentialDatabase,
             keyProvider = {
                 vaultSessionManager.currentSession?.hierarchy?.let { h ->
                     var dbk: ByteArray? = null
                     h.useDatabaseKey { dbk = it.copyOf() }
                     dbk
-                } ?: fallbackBootstrapKey
+                }
             },
             encryptionService = encryptionService,
             decryptionService = decryptionService
         )
-        if (credentialDatabase.credentialDao.getCount() == 0) {
-            com.balatechdev.vaultzero.data.model.SampleData.sampleCredentials.forEach { item ->
-                repo.addCredential(item.toCredentialRecord())
-            }
-        }
-        repo
     }
 
     override val totpService: TotpService by lazy {
@@ -179,23 +194,31 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val documentDatabase: EncryptedDocumentDatabase by lazy {
-        InMemoryEncryptedDocumentDatabase()
-    }
-
-    override val documentRepository: DocumentRepository by lazy {
-        val storageDir = context.filesDir.resolve("vault_documents")
-        val repo = DocumentRepositoryImpl(
-            database = documentDatabase,
-            storageDir = storageDir,
+        PersistentEncryptedDocumentDatabase(
+            databaseFile = context.filesDir.resolve("vaultzero_documents.encdb"),
             keyProvider = {
                 vaultSessionManager.currentSession?.hierarchy?.let { h ->
                     var dbk: ByteArray? = null
                     h.useDatabaseKey { dbk = it.copyOf() }
                     dbk
-                } ?: fallbackBootstrapKey
+                }
             }
         )
-        repo
+    }
+
+    override val documentRepository: DocumentRepository by lazy {
+        val storageDir = context.filesDir.resolve("vault_documents")
+        DocumentRepositoryImpl(
+            database = documentDatabase,
+            storageDir = storageDir,
+            keyProvider = {
+                vaultSessionManager.currentSession?.hierarchy?.let { h ->
+                    var dek: ByteArray? = null
+                    h.useDocumentKey { dek = it.copyOf() }
+                    dek
+                }
+            }
+        )
     }
 
     override val biometricAuthService: BiometricAuthService by lazy {
@@ -204,27 +227,29 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         } else {
             SoftwareBiometricKeyManager()
         }
-        val service = BiometricAuthServiceImpl(
+        BiometricAuthServiceImpl(
             keyManager = keyMgr,
             sessionManager = vaultSessionManager,
             availabilityProvider = { BiometricAvailability.Available }
         )
-        val bootstrapKey = VaultKey(fallbackBootstrapKey)
-        service.enableBiometricUnlock(bootstrapKey)
-        service
     }
 
     override val vaultRecoveryService: VaultRecoveryService by lazy {
-        val service = VaultRecoveryServiceImpl(
+        VaultRecoveryServiceImpl(
             keyStorage = vaultKeyStorage,
+            sessionManager = vaultSessionManager,
+            recoveryFile = context.filesDir.resolve("vault_recovery.env")
+        )
+    }
+
+    override val vaultBackupService: VaultBackupService by lazy {
+        VaultBackupServiceImpl(
+            keyStorage = vaultKeyStorage,
+            credentialDatabase = credentialDatabase,
+            documentDatabase = documentDatabase,
+            documentStorageDir = context.filesDir.resolve("vault_documents"),
+            recoveryService = vaultRecoveryService,
             sessionManager = vaultSessionManager
         )
-        // Bootstrap sample recovery phrase and envelope for demonstration
-        val samplePhrase = service.generateRecoveryPhrase()
-        service.createRecoveryEnvelope(
-            masterKeyBytes = fallbackBootstrapKey,
-            mnemonicWords = samplePhrase
-        )
-        service
     }
 }

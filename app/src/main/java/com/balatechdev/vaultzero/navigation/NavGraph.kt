@@ -1,6 +1,8 @@
 package com.balatechdev.vaultzero.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -10,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.balatechdev.vaultzero.di.AppContainer
+import com.balatechdev.vaultzero.security.VaultLockState
 import com.balatechdev.vaultzero.features.auth.UnlockScreen
 import com.balatechdev.vaultzero.features.categories.CategoriesScreen
 import com.balatechdev.vaultzero.features.credentials.AddCredentialScreen
@@ -37,6 +40,24 @@ fun VaultNavGraph(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val lockState by appContainer.vaultSessionManager.lockState.collectAsState()
+
+   LaunchedEffect(lockState, currentRoute) {
+    if (
+        lockState == VaultLockState.Locked &&
+        currentRoute != null &&
+        currentRoute != Screen.Splash.route &&
+        currentRoute != Screen.Welcome.route &&
+        currentRoute != Screen.InitialSetup.route &&
+        currentRoute != Screen.MasterPasswordCreation.route &&
+        currentRoute != Screen.Unlock.route &&
+        currentRoute != Screen.Recovery.route
+    ) {
+        navController.navigate(Screen.Unlock.route) {
+            launchSingleTop = true
+        }
+    }
+}
 
     NavHost(
         navController = navController,
@@ -47,8 +68,24 @@ fun VaultNavGraph(
         composable(Screen.Splash.route) {
             SplashScreen(
                 onSplashCompleted = {
-                    navController.navigate(Screen.Welcome.route) {
-                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    val isInit = try {
+                        appContainer.vaultAuthService.isInitialized()
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (isInit == true) {
+                        navController.navigate(Screen.Unlock.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    } else if (isInit == false) {
+                        navController.navigate(Screen.Welcome.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    } else {
+                        // Explicit corrupted storage state -> Route to disaster recovery
+                        navController.navigate(Screen.Recovery.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -73,6 +110,8 @@ fun VaultNavGraph(
         // 4. Master Password Creation Screen
         composable(Screen.MasterPasswordCreation.route) {
             MasterPasswordCreationScreen(
+                authService = appContainer.vaultAuthService,
+                biometricAuthService = appContainer.biometricAuthService,
                 onNavigateBack = { navController.popBackStack() },
                 onVaultInitialized = {
                     navController.navigate(Screen.Dashboard.route) {
@@ -88,8 +127,25 @@ fun VaultNavGraph(
                 authService = appContainer.vaultAuthService,
                 biometricAuthService = appContainer.biometricAuthService,
                 onUnlockSuccessful = {
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Unlock.route) { inclusive = true }
+                    val previousRoute =
+                        navController.previousBackStackEntry?.destination?.route
+
+                    val canReturnToPreviousScreen =
+                        previousRoute != null &&
+                        previousRoute != Screen.Splash.route &&
+                        previousRoute != Screen.Welcome.route &&
+                        previousRoute != Screen.Unlock.route &&
+                        previousRoute != Screen.Recovery.route
+
+                    if (canReturnToPreviousScreen) {
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(Screen.Unlock.route) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
                     }
                 },
                 onEmergencyRecoveryClicked = {
@@ -268,6 +324,7 @@ fun VaultNavGraph(
         // 17. Backup and Restore Screen
         composable(Screen.BackupRestore.route) {
             BackupRestoreScreen(
+                backupService = appContainer.vaultBackupService,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

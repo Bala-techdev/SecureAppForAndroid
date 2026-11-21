@@ -1,0 +1,168 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.balatechdev.vaultzero.debug"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <!-- LOCAL HARDWARE BIOMETRICS -->
+12    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+12-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:13:5-72
+12-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:13:22-69
+13
+14    <!-- suppress DeprecatedClassUsageInspection -->
+15    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+15-->[androidx.biometric:biometric:1.2.0-alpha05] /home/balatechdev/.gradle/caches/transforms-4/0297c6ba00788dc79a98c64f75358e7a/transformed/biometric-1.2.0-alpha05/AndroidManifest.xml:25:5-74
+15-->[androidx.biometric:biometric:1.2.0-alpha05] /home/balatechdev/.gradle/caches/transforms-4/0297c6ba00788dc79a98c64f75358e7a/transformed/biometric-1.2.0-alpha05/AndroidManifest.xml:25:22-71
+16
+17    <permission
+17-->[androidx.core:core:1.13.1] /home/balatechdev/.gradle/caches/transforms-4/5779178c2978878319631b902ade4863/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+18        android:name="com.balatechdev.vaultzero.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+18-->[androidx.core:core:1.13.1] /home/balatechdev/.gradle/caches/transforms-4/5779178c2978878319631b902ade4863/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+19        android:protectionLevel="signature" />
+19-->[androidx.core:core:1.13.1] /home/balatechdev/.gradle/caches/transforms-4/5779178c2978878319631b902ade4863/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+20
+21    <uses-permission android:name="com.balatechdev.vaultzero.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+21-->[androidx.core:core:1.13.1] /home/balatechdev/.gradle/caches/transforms-4/5779178c2978878319631b902ade4863/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+21-->[androidx.core:core:1.13.1] /home/balatechdev/.gradle/caches/transforms-4/5779178c2978878319631b902ade4863/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+22
+23    <application
+23-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:15:5-39:19
+24        android:name="com.balatechdev.vaultzero.VaultZeroApplication"
+24-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:16:9-45
+25        android:allowBackup="false"
+25-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:17:9-36
+26        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+26-->[androidx.core:core:1.13.1] /home/balatechdev/.gradle/caches/transforms-4/5779178c2978878319631b902ade4863/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+27        android:dataExtractionRules="@xml/data_extraction_rules"
+27-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:19:9-65
+28        android:debuggable="true"
+29        android:extractNativeLibs="false"
+30        android:fullBackupContent="@xml/backup_rules"
+30-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:18:9-54
+31        android:icon="@mipmap/ic_launcher"
+31-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:20:9-43
+32        android:label="@string/app_name"
+32-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:21:9-41
+33        android:roundIcon="@mipmap/ic_launcher_round"
+33-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:22:9-54
+34        android:supportsRtl="true"
+34-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:23:9-35
+35        android:theme="@style/Theme.VaultZero" >
+35-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:24:9-47
+36
+37        <!-- MAIN ENTRY POINT: Restricted Exported Component -->
+38        <activity
+38-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:28:9-37:20
+39            android:name="com.balatechdev.vaultzero.MainActivity"
+39-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:29:13-41
+40            android:exported="true"
+40-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:30:13-36
+41            android:launchMode="singleTask"
+41-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:31:13-44
+42            android:windowSoftInputMode="adjustResize" >
+42-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:32:13-55
+43            <intent-filter>
+43-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:33:13-36:29
+44                <action android:name="android.intent.action.MAIN" />
+44-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:34:17-69
+44-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:34:25-66
+45
+46                <category android:name="android.intent.category.LAUNCHER" />
+46-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:35:17-77
+46-->/home/balatechdev/Projects/androidApp/SecureAppForAndroid/app/src/main/AndroidManifest.xml:35:27-74
+47            </intent-filter>
+48        </activity>
+49        <activity
+49-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/balatechdev/.gradle/caches/transforms-4/d0e480b77374b8d63eb7c941c2b4b2d7/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+50            android:name="androidx.compose.ui.tooling.PreviewActivity"
+50-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/balatechdev/.gradle/caches/transforms-4/d0e480b77374b8d63eb7c941c2b4b2d7/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+51            android:exported="true" />
+51-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/balatechdev/.gradle/caches/transforms-4/d0e480b77374b8d63eb7c941c2b4b2d7/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+52        <activity
+52-->[androidx.compose.ui:ui-test-manifest:1.6.7] /home/balatechdev/.gradle/caches/transforms-4/764f5ba70463a9f18183fe41ea65a040/transformed/ui-test-manifest-1.6.7/AndroidManifest.xml:23:9-25:39
+53            android:name="androidx.activity.ComponentActivity"
+53-->[androidx.compose.ui:ui-test-manifest:1.6.7] /home/balatechdev/.gradle/caches/transforms-4/764f5ba70463a9f18183fe41ea65a040/transformed/ui-test-manifest-1.6.7/AndroidManifest.xml:24:13-63
+54            android:exported="true" />
+54-->[androidx.compose.ui:ui-test-manifest:1.6.7] /home/balatechdev/.gradle/caches/transforms-4/764f5ba70463a9f18183fe41ea65a040/transformed/ui-test-manifest-1.6.7/AndroidManifest.xml:25:13-36
+55
+56        <provider
+56-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+57            android:name="androidx.startup.InitializationProvider"
+57-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+58            android:authorities="com.balatechdev.vaultzero.debug.androidx-startup"
+58-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+59            android:exported="false" >
+59-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+60            <meta-data
+60-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+61                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+61-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+62                android:value="androidx.startup" />
+62-->[androidx.emoji2:emoji2:1.3.0] /home/balatechdev/.gradle/caches/transforms-4/60e95860ed21329a973b7887d85e5306/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+63            <meta-data
+63-->[androidx.lifecycle:lifecycle-process:2.8.1] /home/balatechdev/.gradle/caches/transforms-4/7d972fa4165afb2879aadac20ed5be55/transformed/lifecycle-process-2.8.1/AndroidManifest.xml:29:13-31:52
+64                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+64-->[androidx.lifecycle:lifecycle-process:2.8.1] /home/balatechdev/.gradle/caches/transforms-4/7d972fa4165afb2879aadac20ed5be55/transformed/lifecycle-process-2.8.1/AndroidManifest.xml:30:17-78
+65                android:value="androidx.startup" />
+65-->[androidx.lifecycle:lifecycle-process:2.8.1] /home/balatechdev/.gradle/caches/transforms-4/7d972fa4165afb2879aadac20ed5be55/transformed/lifecycle-process-2.8.1/AndroidManifest.xml:31:17-49
+66            <meta-data
+66-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+67                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+67-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+68                android:value="androidx.startup" />
+68-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+69        </provider>
+70
+71        <service
+71-->[androidx.room:room-runtime:2.6.1] /home/balatechdev/.gradle/caches/transforms-4/d0e3103229eb29215cd85e63bf1f474d/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+72            android:name="androidx.room.MultiInstanceInvalidationService"
+72-->[androidx.room:room-runtime:2.6.1] /home/balatechdev/.gradle/caches/transforms-4/d0e3103229eb29215cd85e63bf1f474d/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+73            android:directBootAware="true"
+73-->[androidx.room:room-runtime:2.6.1] /home/balatechdev/.gradle/caches/transforms-4/d0e3103229eb29215cd85e63bf1f474d/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+74            android:exported="false" />
+74-->[androidx.room:room-runtime:2.6.1] /home/balatechdev/.gradle/caches/transforms-4/d0e3103229eb29215cd85e63bf1f474d/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+75
+76        <receiver
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+77            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+77-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+78            android:directBootAware="false"
+78-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+79            android:enabled="true"
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+80            android:exported="true"
+80-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+81            android:permission="android.permission.DUMP" >
+81-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+82            <intent-filter>
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+83                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+83-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+83-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+84            </intent-filter>
+85            <intent-filter>
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+86                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+87            </intent-filter>
+88            <intent-filter>
+88-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+89                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+90            </intent-filter>
+91            <intent-filter>
+91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+92                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/balatechdev/.gradle/caches/transforms-4/9d1c3e4e90e6ee77a1d0add1aee91c7e/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+93            </intent-filter>
+94        </receiver>
+95    </application>
+96
+97</manifest>

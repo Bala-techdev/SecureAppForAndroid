@@ -112,10 +112,58 @@ interface VaultRecoveryService {
 class VaultRecoveryServiceImpl(
     private val keyStorage: VaultKeyStorage,
     private val sessionManager: VaultSessionManager,
+    private val recoveryFile: java.io.File? = null,
     private val secureRandom: SecureRandom = SecureRandom()
 ) : VaultRecoveryService {
 
     private var inMemoryRecoveryEnvelope: RecoveryKeyEnvelope? = null
+
+    init {
+        loadRecoveryEnvelopeFromFile()
+    }
+
+    private fun loadRecoveryEnvelopeFromFile() {
+        if (recoveryFile != null && recoveryFile.exists() && recoveryFile.length() > 0) {
+            try {
+                java.io.FileInputStream(recoveryFile).use { fis ->
+                    val dis = java.io.DataInputStream(fis)
+                    val magic = ByteArray(5)
+                    dis.readFully(magic)
+                    if (magic.contentEquals(byteArrayOf(0x56, 0x30, 0x52, 0x45, 0x43))) { // "V0REC"
+                        val version = dis.readByte()
+                        if (version == 0x01.toByte()) {
+                            val saltLen = dis.readInt()
+                            val salt = ByteArray(saltLen)
+                            dis.readFully(salt)
+
+                            val nonceLen = dis.readInt()
+                            val nonce = ByteArray(nonceLen)
+                            dis.readFully(nonce)
+
+                            val wrapLen = dis.readInt()
+                            val wrapped = ByteArray(wrapLen)
+                            dis.readFully(wrapped)
+
+                            val iters = dis.readInt()
+                            val mem = dis.readInt()
+                            val par = dis.readInt()
+
+                            inMemoryRecoveryEnvelope = RecoveryKeyEnvelope(
+                                salt = salt,
+                                nonce = nonce,
+                                wrappedKey = wrapped,
+                                iterations = iters,
+                                memoryKiB = mem,
+                                parallelism = par
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Best effort load, if corrupted remains null
+            }
+        }
+    }
 
     override fun generateRecoveryPhrase(): List<String> {
         val entropy = Bip39Mnemonic.generateEntropy256(secureRandom)
@@ -287,14 +335,46 @@ class VaultRecoveryServiceImpl(
     }
 
     override fun hasRecoveryEnvelope(): Boolean {
+        if (inMemoryRecoveryEnvelope != null) return true
+        loadRecoveryEnvelopeFromFile()
         return inMemoryRecoveryEnvelope != null
     }
 
     override fun saveRecoveryEnvelope(envelope: RecoveryKeyEnvelope) {
         inMemoryRecoveryEnvelope = envelope
+        if (recoveryFile != null) {
+            try {
+                val tmp = java.io.File(recoveryFile.parentFile, "${recoveryFile.name}.tmp")
+                java.io.FileOutputStream(tmp).use { fos ->
+                    val dos = java.io.DataOutputStream(fos)
+                    dos.write(byteArrayOf(0x56, 0x30, 0x52, 0x45, 0x43)) // "V0REC"
+                    dos.writeByte(0x01)
+                    dos.writeInt(envelope.salt.size)
+                    dos.write(envelope.salt)
+                    dos.writeInt(envelope.nonce.size)
+                    dos.write(envelope.nonce)
+                    dos.writeInt(envelope.wrappedKey.size)
+                    dos.write(envelope.wrappedKey)
+                    dos.writeInt(envelope.iterations)
+                    dos.writeInt(envelope.memoryKiB)
+                    dos.writeInt(envelope.parallelism)
+                    dos.flush()
+                    fos.fd.sync()
+                }
+                if (!tmp.renameTo(recoveryFile)) {
+                    recoveryFile.delete()
+                    tmp.renameTo(recoveryFile)
+                }
+            } catch (e: Exception) {
+                // Ignore persistent save error in test or restricted environments
+            }
+        }
     }
 
     override fun getRecoveryEnvelope(): RecoveryKeyEnvelope? {
+        if (inMemoryRecoveryEnvelope == null) {
+            loadRecoveryEnvelopeFromFile()
+        }
         return inMemoryRecoveryEnvelope
     }
 }

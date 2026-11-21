@@ -47,10 +47,10 @@ import androidx.compose.ui.unit.dp
 import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
+import androidx.compose.foundation.layout.Box
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityAlert
 import com.balatechdev.vaultzero.data.model.CredentialRecord
 import com.balatechdev.vaultzero.data.model.DefaultCategories
-import com.balatechdev.vaultzero.data.model.SampleData
 import com.balatechdev.vaultzero.data.model.toCredentialItem
 import com.balatechdev.vaultzero.data.repository.CredentialRepository
 import com.balatechdev.vaultzero.security.crypto.PasswordGenerator
@@ -66,8 +66,32 @@ fun EditCredentialScreen(
     modifier: Modifier = Modifier
 ) {
     val existing = repository?.getCredentialById(credentialId)?.toCredentialItem()
-        ?: SampleData.sampleCredentials.find { it.id == credentialId }
-        ?: SampleData.sampleCredentials.first()
+
+    if (existing == null) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
+                VaultTopAppBar(
+                    title = "Edit Credential",
+                    onNavigateBack = onNavigateBack
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Credential not found or has been deleted.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
 
     var title by remember { mutableStateOf(existing.title) }
     var username by remember { mutableStateOf(existing.username) }

@@ -2,6 +2,7 @@ package com.balatechdev.vaultzero.features.credentials
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.unit.dp
 import com.balatechdev.vaultzero.core.designsystem.components.MaskedPasswordRow
 import com.balatechdev.vaultzero.core.designsystem.components.PasswordStrengthMeter
@@ -44,7 +46,6 @@ import com.balatechdev.vaultzero.core.designsystem.components.VaultCard
 import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryOrange
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
-import com.balatechdev.vaultzero.data.model.SampleData
 import kotlinx.coroutines.launch
 
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,6 +62,8 @@ import com.balatechdev.vaultzero.security.totp.TotpConfig
 import com.balatechdev.vaultzero.security.totp.TotpGenerator
 import com.balatechdev.vaultzero.security.totp.TotpService
 import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
 
 @Composable
 fun CredentialDetailsScreen(
@@ -73,12 +76,34 @@ fun CredentialDetailsScreen(
     modifier: Modifier = Modifier
 ) {
     val credential = repository?.getCredentialById(credentialId)?.toCredentialItem()
-        ?: SampleData.sampleCredentials.find { it.id == credentialId }
-        ?: SampleData.sampleCredentials.first()
 
-    val rawTotpSecret = repository?.getCredentialById(credentialId)?.totpSecret
-        ?: credential.totpSecret
-        ?: ""
+    if (credential == null) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
+                VaultTopAppBar(
+                    title = "Credential Details",
+                    onNavigateBack = onNavigateBack
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Credential not found or has been deleted.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
+
+    val rawTotpSecret = repository.getCredentialById(credentialId)?.totpSecret ?: ""
 
     var currentOtpCode by remember { mutableStateOf("------") }
     var remainingSeconds by remember { mutableIntStateOf(30) }

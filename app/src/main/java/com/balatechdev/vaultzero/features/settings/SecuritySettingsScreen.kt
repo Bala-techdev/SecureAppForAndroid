@@ -188,8 +188,13 @@ fun SecuritySettingsScreen(
                             onCheckedChange = { isEnabled ->
                                 biometricEnabled = isEnabled
                                 if (isEnabled) {
-                                    val dummyKey = VaultKey(ByteArray(32) { (it * 7).toByte() })
-                                    biometricAuthService?.enableBiometricUnlock(dummyKey)
+                                    val session = sessionManager?.currentSession
+                                    if (session != null) {
+                                        session.hierarchy.masterKey.useKey { keyBytes ->
+                                            val vaultKey = com.balatechdev.vaultzero.security.crypto.VaultKey(keyBytes)
+                                            biometricAuthService?.enableBiometricUnlock(vaultKey)
+                                        }
+                                    }
                                 } else {
                                     biometricAuthService?.disableBiometricUnlock()
                                 }

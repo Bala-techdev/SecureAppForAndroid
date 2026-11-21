@@ -5,6 +5,10 @@
 # Google Tink rules
 -keep class com.google.crypto.tink.** { *; }
 
+# BouncyCastle Cryptography rules
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
+
 # Room SQLite
 -keep class androidx.room.** { *; }
 

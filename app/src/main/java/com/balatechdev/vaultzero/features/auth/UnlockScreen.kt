@@ -116,6 +116,11 @@ fun UnlockScreen(
         biometricAuthService.authenticate { result ->
             when (result) {
                 is BiometricAuthResult.Success -> {
+                    result.unlockedKey.useKey { keyBytes ->
+                        val mk = com.balatechdev.vaultzero.security.auth.MasterKey(keyBytes)
+                        val hierarchy = com.balatechdev.vaultzero.security.auth.MasterKeyHierarchy.fromMasterKey(mk)
+                        biometricAuthService.sessionManager.startSession(hierarchy)
+                    }
                     errorMessage = null
                     onUnlockSuccessful()
                 }

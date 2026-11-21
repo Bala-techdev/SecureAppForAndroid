@@ -28,7 +28,7 @@ interface DocumentRepository {
         fileName: String,
         categoryId: String = DocumentCategory.OTHER.id,
         notes: String = "",
-        masterKey: ByteArray
+        masterKey: ByteArray? = null
     ): DocumentEntity
 
     fun importFromUri(
@@ -37,12 +37,12 @@ interface DocumentRepository {
         title: String,
         categoryId: String = DocumentCategory.OTHER.id,
         notes: String = "",
-        masterKey: ByteArray
+        masterKey: ByteArray? = null
     ): DocumentEntity
 
-    fun decryptDocumentToBytes(documentId: String, masterKey: ByteArray): ByteArray
+    fun decryptDocumentToBytes(documentId: String, masterKey: ByteArray? = null): ByteArray
 
-    fun decryptDocumentToTempFile(documentId: String, masterKey: ByteArray, tempDir: File): File
+    fun decryptDocumentToTempFile(documentId: String, masterKey: ByteArray? = null, tempDir: File): File
 
     fun renameDocument(documentId: String, newTitle: String): Boolean
 
@@ -97,10 +97,18 @@ class DocumentRepositoryImpl(
         fileName: String,
         categoryId: String,
         notes: String,
-        masterKey: ByteArray
+        masterKey: ByteArray?
     ): DocumentEntity {
         val key = resolveKey(masterKey)
-        val ext = fileName.substringAfterLast('.', "").lowercase(Locale.US)
+        val baseName = fileName.substringAfterLast('/').substringAfterLast('\\')
+        var safeFileName = baseName.replace(Regex("[^a-zA-Z0-9._-]"), "_").trim()
+        while (safeFileName.contains("..")) {
+            safeFileName = safeFileName.replace("..", "_")
+        }
+        if (safeFileName.isBlank()) {
+            safeFileName = "document"
+        }
+        val ext = safeFileName.substringAfterLast('.', fileName.substringAfterLast('.', "")).lowercase(Locale.US)
         val mimeType = when (ext) {
             "pdf" -> "application/pdf"
             "jpg", "jpeg" -> "image/jpeg"
@@ -128,6 +136,10 @@ class DocumentRepositoryImpl(
                 )
             }
 
+            if (totalPlaintextBytes == 0L) {
+                throw IllegalArgumentException("Cannot import an empty file (0 bytes)")
+            }
+
             // Atomic rename to final encrypted file on complete success
             if (!partFile.renameTo(finalEncFile)) {
                 // Fallback copy if rename fails across file systems
@@ -147,8 +159,8 @@ class DocumentRepositoryImpl(
 
         val entity = DocumentEntity(
             id = docId,
-            title = title.ifBlank { fileName },
-            fileName = fileName,
+            title = title.ifBlank { safeFileName },
+            fileName = safeFileName,
             fileExtension = ext,
             mimeType = mimeType,
             fileSizeBytes = totalPlaintextBytes,
@@ -171,7 +183,7 @@ class DocumentRepositoryImpl(
         title: String,
         categoryId: String,
         notes: String,
-        masterKey: ByteArray
+        masterKey: ByteArray?
     ): DocumentEntity {
         var resolvedFileName = "document.pdf"
         try {
@@ -200,7 +212,7 @@ class DocumentRepositoryImpl(
         }
     }
 
-    override fun decryptDocumentToBytes(documentId: String, masterKey: ByteArray): ByteArray {
+    override fun decryptDocumentToBytes(documentId: String, masterKey: ByteArray?): ByteArray {
         val key = resolveKey(masterKey)
         val entity = database.documentDao.getById(documentId)
             ?: throw IllegalArgumentException("Document not found with ID: $documentId")
@@ -214,7 +226,7 @@ class DocumentRepositoryImpl(
         return DocumentCryptoEngine.decryptToBytes(encFile, key, aad)
     }
 
-    override fun decryptDocumentToTempFile(documentId: String, masterKey: ByteArray, tempDir: File): File {
+    override fun decryptDocumentToTempFile(documentId: String, masterKey: ByteArray?, tempDir: File): File {
         val key = resolveKey(masterKey)
         val entity = database.documentDao.getById(documentId)
             ?: throw IllegalArgumentException("Document not found with ID: $documentId")

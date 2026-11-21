@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +48,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key 
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,11 +69,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.balatechdev.vaultzero.core.designsystem.components.VaultCard
 import com.balatechdev.vaultzero.core.designsystem.components.VaultTopAppBar
+import com.balatechdev.vaultzero.core.designsystem.components.ZoomableBox
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultCategoryPurple
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
+import androidx.compose.foundation.layout.Box
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityAlert
 import com.balatechdev.vaultzero.data.model.DocumentCategory
-import com.balatechdev.vaultzero.data.model.SampleData
 import com.balatechdev.vaultzero.data.repository.DocumentRepository
 import com.balatechdev.vaultzero.security.MemoryZeroizer
 import com.balatechdev.vaultzero.security.WindowSecurityManager
@@ -103,8 +108,32 @@ fun DocumentPreviewScreen(
 
     val dbEntity = repository?.getDocumentById(documentId)
     val document = dbEntity?.toDocumentItem()
-        ?: SampleData.sampleDocuments.find { it.id == documentId }
-        ?: SampleData.sampleDocuments.first()
+
+    if (document == null) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
+                VaultTopAppBar(
+                    title = "Document Preview",
+                    onNavigateBack = onNavigateBack
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Document not found or has been deleted.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
 
     var docTitle by remember { mutableStateOf(document.title) }
     var docCategory by remember { mutableStateOf(dbEntity?.categoryId ?: document.categoryId) }
@@ -113,53 +142,79 @@ fun DocumentPreviewScreen(
     var showCategoryMenu by remember { mutableStateOf(false) }
     var renameInput by remember { mutableStateOf(document.title) }
 
-    // In-memory preview state
+   // Document preview state
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var previewError by remember { mutableStateOf<String?>(null) }
     var tempPdfFile by remember { mutableStateOf<File?>(null) }
-
-    val dummyFallbackKey = remember { ByteArray(32) { (it * 7).toByte() } }
+    var pdfPageCount by remember { mutableStateOf(0) }
 
     // Decrypt and load preview
+    // Decrypt and prepare document preview
     LaunchedEffect(documentId) {
         if (repository != null && dbEntity != null) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val ext = dbEntity.fileExtension.lowercase()
-                    if (ext == "jpg" || ext == "jpeg" || ext == "png") {
-                        // Secure in-memory image decryption - zero disk writes
-                        val decryptedBytes = repository.decryptDocumentToBytes(documentId, dummyFallbackKey)
-                        val bitmap = BitmapFactory.decodeByteArray(decryptedBytes, 0, decryptedBytes.size)
-                        MemoryZeroizer.zeroize(decryptedBytes)
-                        withContext(Dispatchers.Main) {
-                            previewBitmap = bitmap
+            try {
+                val ext = dbEntity.fileExtension.lowercase()
+
+                if (ext == "jpg" || ext == "jpeg" || ext == "png") {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        val decryptedBytes =
+                            repository.decryptDocumentToBytes(documentId)
+
+                        try {
+                            BitmapFactory.decodeByteArray(
+                                decryptedBytes,
+                                0,
+                                decryptedBytes.size
+                            )
+                        } finally {
+                            MemoryZeroizer.zeroize(decryptedBytes)
                         }
-                    } else if (ext == "pdf") {
-                        // Secure temporary file for Android PdfRenderer
-                        val tempDir = File(context.cacheDir, "preview_tmp")
-                        val temp = repository.decryptDocumentToTempFile(documentId, dummyFallbackKey, tempDir)
-                        tempPdfFile = temp
+                    }
 
-                        val pfd = ParcelFileDescriptor.open(temp, ParcelFileDescriptor.MODE_READ_ONLY)
-                        val pdfRenderer = PdfRenderer(pfd)
-                        if (pdfRenderer.pageCount > 0) {
-                            val page = pdfRenderer.openPage(0)
-                            val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
-                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            page.close()
-                            pdfRenderer.close()
-                            pfd.close()
+                    if (bitmap != null) {
+                        previewBitmap = bitmap
+                    } else {
+                        previewError = "Unable to decode this image."
+                    }
 
-                            withContext(Dispatchers.Main) {
-                                previewBitmap = bitmap
+                } else if (ext == "pdf") {
+                    val tempDir = File(context.cacheDir, "preview_tmp")
+
+                    val temp = withContext(Dispatchers.IO) {
+                        repository.decryptDocumentToTempFile(
+                            documentId = documentId,
+                            tempDir = tempDir
+                        )
+                    }
+
+                    val pageCount = withContext(Dispatchers.IO) {
+                        val pfd = ParcelFileDescriptor.open(
+                            temp,
+                            ParcelFileDescriptor.MODE_READ_ONLY
+                        )
+
+                        try {
+                            PdfRenderer(pfd).use { renderer ->
+                                renderer.pageCount
                             }
+                        } finally {
+                            pfd.close()
                         }
                     }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        previewError = e.message ?: "Decryption failed"
+
+                    tempPdfFile = temp
+                    pdfPageCount = pageCount
+
+                    if (pageCount == 0) {
+                        previewError = "This PDF contains no pages."
                     }
+
+                } else {
+                    previewError = "This file format is not supported."
                 }
+
+            } catch (e: Exception) {
+                previewError = e.message ?: "Unable to load document."
             }
         }
     }
@@ -341,64 +396,111 @@ fun DocumentPreviewScreen(
             }
 
             // Secure In-Memory Document Viewer Canvas
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(320.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (previewBitmap != null) {
-                    Image(
-                        bitmap = previewBitmap!!.asImageBitmap(),
-                        contentDescription = "Decrypted Document Preview",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
+           // Document Viewer
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant,
+                            RoundedCornerShape(16.dp)
+                        )
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "DOCUMENT VIEWER",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = VaultEmeraldPrimary,
+                        fontWeight = FontWeight.Bold
                     )
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = VaultEmeraldPrimary.copy(alpha = 0.6f),
-                            modifier = Modifier.size(54.dp)
-                        )
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                    when {
+                        previewError != null -> {
+                            Text(
+                                text = previewError!!,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
 
-                        Text(
-                            text = "SECURE IN-MEMORY VIEWER",
-                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                            color = VaultEmeraldPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
+                        document.fileExtension.equals("pdf", ignoreCase = true) -> {
+                            val pdfFile = tempPdfFile
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                            if (pdfFile != null && pdfPageCount > 0) {
+                                Text(
+                                    text = "$pdfPageCount pages",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
 
-                        Text(
-                            text = if (previewError != null) "Decryption verification: $previewError"
-                            else "Hardware FLAG_SECURE active.\nDecrypted in isolated sandbox RAM.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(600.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    items((0 until pdfPageCount).toList()) { pageIndex ->
+                                        key(pageIndex) {
+                                            PdfPageViewer(
+                                                pdfFile = pdfFile,
+                                                pageIndex = pageIndex
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "Preparing PDF preview...",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        previewBitmap != null -> {
+                            ZoomableBox(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 200.dp, max = 500.dp),
+                                minScale = 1f,
+                                maxScale = 5f,
+                                doubleTapScale = 2.5f
+                            ) {
+                                Image(
+                                    bitmap = previewBitmap!!.asImageBitmap(),
+                                    contentDescription = "Document image preview",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                        }
 
-                        Text(
-                            text = "CONFIDENTIAL • AES-256-GCM PROTECTED",
-                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                        else -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = VaultEmeraldPrimary,
+                                    modifier = Modifier.size(48.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    text = "Loading document preview...",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
             // Document Notes
             if (document.notes.isNotEmpty()) {

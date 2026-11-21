@@ -1,0 +1,170 @@
+package com.balatechdev.vaultzero.features.documents
+
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import com.balatechdev.vaultzero.core.designsystem.components.ZoomableBox
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+
+@Composable
+fun PdfPageViewer(
+    pdfFile: File,
+    pageIndex: Int,
+    modifier: Modifier = Modifier
+) {
+    var pageBitmap by remember(pdfFile, pageIndex) {
+        mutableStateOf<Bitmap?>(null)
+    }
+
+    var pageError by remember(pdfFile, pageIndex) {
+        mutableStateOf<String?>(null)
+    }
+
+    LaunchedEffect(pdfFile, pageIndex) {
+        val result = withContext(Dispatchers.IO) {
+            try {
+                val descriptor = ParcelFileDescriptor.open(
+                    pdfFile,
+                    ParcelFileDescriptor.MODE_READ_ONLY
+                )
+
+                try {
+                    PdfRenderer(descriptor).use { renderer ->
+                        if (pageIndex !in 0 until renderer.pageCount) {
+                            throw IllegalArgumentException("Invalid PDF page")
+                        }
+
+                        renderer.openPage(pageIndex).use { page ->
+                            val maxWidth = 1200
+                            val scale = minOf(
+                                1f,
+                                maxWidth.toFloat() / page.width
+                            )
+
+                            val bitmapWidth =
+                                (page.width * scale).toInt().coerceAtLeast(1)
+
+                            val bitmapHeight =
+                                (page.height * scale).toInt().coerceAtLeast(1)
+
+                            val bitmap = Bitmap.createBitmap(
+                                bitmapWidth,
+                                bitmapHeight,
+                                Bitmap.Config.ARGB_8888
+                            )
+
+                            page.render(
+                                bitmap,
+                                null,
+                                null,
+                                PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
+                            )
+
+                            bitmap
+                        }
+                    }
+                } finally {
+                    descriptor.close()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        if (result != null) {
+            pageBitmap = result
+        } else {
+            pageError = "Unable to render page ${pageIndex + 1}."
+        }
+    }
+
+    DisposableEffect(pageBitmap) {
+        val bitmap = pageBitmap
+
+        onDispose {
+            bitmap?.recycle()
+        }
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "PAGE ${pageIndex + 1}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    MaterialTheme.colorScheme.surface,
+                    RoundedCornerShape(8.dp)
+                )
+                .padding(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                pageBitmap != null -> {
+                    ZoomableBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        minScale = 1f,
+                        maxScale = 5f,
+                        doubleTapScale = 2.5f
+                    ) {
+                        Image(
+                            bitmap = pageBitmap!!.asImageBitmap(),
+                            contentDescription = "PDF page ${pageIndex + 1}",
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.FillWidth
+                        )
+                    }
+                }
+
+                pageError != null -> {
+                    Text(
+                        text = pageError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = "Loading page ${pageIndex + 1}...",
+                        modifier = Modifier.padding(24.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}

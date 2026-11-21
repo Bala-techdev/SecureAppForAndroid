@@ -52,7 +52,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.collectAsState
 import com.balatechdev.vaultzero.data.model.DocumentCategory
 import com.balatechdev.vaultzero.data.model.DocumentItem
-import com.balatechdev.vaultzero.data.model.SampleData
 import com.balatechdev.vaultzero.data.repository.DocumentRepository
 
 @Composable
@@ -73,13 +72,9 @@ fun DocumentVaultScreen(
 
     val allDocuments = if (repository != null) {
         val list = if (dbItems.isEmpty()) repository.getAllDocuments() else dbItems
-        if (list.isEmpty()) {
-            SampleData.sampleDocuments
-        } else {
-            list.map { it.toDocumentItem() }
-        }
+        list.map { it.toDocumentItem() }
     } else {
-        SampleData.sampleDocuments
+        emptyList()
     }
 
     val filteredList = allDocuments.filter { doc ->

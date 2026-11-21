@@ -1,0 +1,2 @@
+--------- beginning of main
+11-20 08:45:40.751 32676 32676 I adbd    : adbd service requested 'shell,v2,TERM=xterm-256color:export ANDROID_LOG_TAGS="''"; exec logcat '-d' '-t' '2000''

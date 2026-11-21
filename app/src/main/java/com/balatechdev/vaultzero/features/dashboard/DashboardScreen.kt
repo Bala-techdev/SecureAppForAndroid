@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.balatechdev.vaultzero.core.designsystem.components.EmptyStateView
 import com.balatechdev.vaultzero.core.designsystem.components.SecurityStatusCard
 import com.balatechdev.vaultzero.core.designsystem.components.VaultBottomNavigationBar
 import com.balatechdev.vaultzero.core.designsystem.components.VaultCard
@@ -49,7 +50,8 @@ import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityInfo
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityWarning
 import com.balatechdev.vaultzero.data.model.CredentialItem
-import com.balatechdev.vaultzero.data.model.SampleData
+import com.balatechdev.vaultzero.data.model.PasswordStrength
+import com.balatechdev.vaultzero.data.model.SecurityAuditStatus
 import com.balatechdev.vaultzero.navigation.Screen
 
 import androidx.compose.runtime.collectAsState
@@ -85,14 +87,26 @@ fun DashboardScreen(
             repositoryItems.map { it.toCredentialItem() }
         }
     } else {
-        SampleData.sampleCredentials
+        emptyList()
     }
-    val documents = if (documentRepository != null && docItems.isNotEmpty()) {
-        docItems.map { it.toDocumentItem() }
+    val documents = if (documentRepository != null) {
+        val list = if (docItems.isEmpty()) documentRepository.getAllDocuments() else docItems
+        list.map { it.toDocumentItem() }
     } else {
-        SampleData.sampleDocuments
+        emptyList()
     }
-    val securityStatus = SampleData.securityAudit
+    val weakCount = credentials.count { it.passwordStrength == PasswordStrength.WEAK }
+    val securityStatus = SecurityAuditStatus(
+        healthScore = if (credentials.isEmpty()) 100 else (100 - (weakCount * 15)).coerceIn(10, 100),
+        totalCredentials = credentials.size,
+        totalDocuments = documents.size,
+        weakPasswordsCount = weakCount,
+        reusedPasswordsCount = 0,
+        isBiometricsActive = true,
+        isScreenshotProtected = true,
+        isOfflineEnforced = true,
+        lastBackupDate = if (credentials.isNotEmpty() || documents.isNotEmpty()) "Up to date" else "No backups yet"
+    )
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -224,11 +238,23 @@ fun DashboardScreen(
                 }
             }
 
-            items(credentials.take(4)) { item ->
-                RecentCredentialRow(
-                    item = item,
-                    onClick = { onNavigateToCredentialDetails(item.id) }
-                )
+            if (credentials.isEmpty()) {
+                item {
+                    EmptyStateView(
+                        icon = Icons.Default.Lock,
+                        title = "Vault is Empty",
+                        description = "Get started by adding your first credential or document.",
+                        actionButtonText = "+ Add Password",
+                        onActionClicked = onNavigateToAddCredential
+                    )
+                }
+            } else {
+                items(credentials.take(4)) { item ->
+                    RecentCredentialRow(
+                        item = item,
+                        onClick = { onNavigateToCredentialDetails(item.id) }
+                    )
+                }
             }
 
             item {

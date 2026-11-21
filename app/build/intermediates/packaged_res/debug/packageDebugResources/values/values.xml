@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vault_black">#0D0F12</color>
+    <color name="vault_on_primary">#003919</color>
+    <color name="vault_primary">#00E676</color>
+    <color name="vault_surface">#161A22</color>
+    <string name="app_name">VaultZero</string>
+    <string name="app_tagline">Offline Personal Security Vault</string>
+    <string name="security_notice">Zero Network • Hardware Enforced • Completely Private</string>
+    <style name="Theme.VaultZero" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/vault_black</item>
+        <item name="android:navigationBarColor">@color/vault_black</item>
+        <item name="android:windowBackground">@color/vault_black</item>
+    </style>
+</resources>

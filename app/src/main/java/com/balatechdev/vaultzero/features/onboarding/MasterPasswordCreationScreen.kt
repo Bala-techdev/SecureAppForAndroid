@@ -52,6 +52,8 @@ import com.balatechdev.vaultzero.data.model.PasswordStrength
 
 @Composable
 fun MasterPasswordCreationScreen(
+    authService: com.balatechdev.vaultzero.security.auth.VaultAuthService? = null,
+    biometricAuthService: com.balatechdev.vaultzero.security.biometric.BiometricAuthService? = null,
     onNavigateBack: () -> Unit,
     onVaultInitialized: () -> Unit,
     modifier: Modifier = Modifier
@@ -60,6 +62,7 @@ fun MasterPasswordCreationScreen(
     var confirmPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var enableBiometrics by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val hasMinLength = password.length >= 12
     val hasUpperAndLower = password.any { it.isUpperCase() } && password.any { it.isLowerCase() }
@@ -202,12 +205,45 @@ fun MasterPasswordCreationScreen(
                         )
                     }
                 }
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = onVaultInitialized,
+                onClick = {
+                    if (authService != null) {
+                        val pChars = password.toCharArray()
+                        val cChars = confirmPassword.toCharArray()
+                        val res = authService.createMasterPassword(pChars, cChars)
+                        pChars.fill('0')
+                        cChars.fill('0')
+                        when (res) {
+                            is com.balatechdev.vaultzero.security.auth.AuthResult.Success -> {
+                                if (enableBiometrics && biometricAuthService != null) {
+                                    res.data.masterKey.useKey { keyBytes ->
+                                        val vKey = com.balatechdev.vaultzero.security.crypto.VaultKey(keyBytes)
+                                        biometricAuthService.enableBiometricUnlock(vKey)
+                                    }
+                                }
+                                onVaultInitialized()
+                            }
+                            is com.balatechdev.vaultzero.security.auth.AuthResult.Failure -> {
+                                errorMessage = "Failed to initialize vault: ${res.error}"
+                            }
+                        }
+                    } else {
+                        onVaultInitialized()
+                    }
+                },
                 enabled = isFormValid,
                 modifier = Modifier
                     .fillMaxWidth()

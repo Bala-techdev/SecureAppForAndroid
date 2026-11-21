@@ -31,4 +31,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        WindowSecurityManager.enableSecureScreen(window)
+        val appContainer = (application as? VaultZeroApplication)?.container
+        appContainer?.vaultSessionManager?.checkAndExpire()
+    }
 }

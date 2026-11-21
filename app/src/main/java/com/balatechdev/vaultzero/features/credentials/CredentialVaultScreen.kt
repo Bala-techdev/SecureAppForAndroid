@@ -1,5 +1,6 @@
 package com.balatechdev.vaultzero.features.credentials
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +49,6 @@ import com.balatechdev.vaultzero.core.designsystem.theme.VaultEmeraldPrimary
 import com.balatechdev.vaultzero.core.designsystem.theme.VaultSecurityWarning
 import com.balatechdev.vaultzero.data.model.CredentialItem
 import com.balatechdev.vaultzero.data.model.DefaultCategories
-import com.balatechdev.vaultzero.data.model.SampleData
 import com.balatechdev.vaultzero.data.model.toCredentialItem
 import com.balatechdev.vaultzero.data.repository.CredentialRepository
 import androidx.compose.runtime.collectAsState
@@ -76,7 +76,7 @@ fun CredentialVaultScreen(
             repositoryItems.map { it.toCredentialItem() }
         }
     } else {
-        SampleData.sampleCredentials
+        emptyList()
     }
 
     val filteredList = allCredentials.filter { item ->

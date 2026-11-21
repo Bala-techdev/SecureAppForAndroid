@@ -25,6 +25,17 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("vaultzero-release.jks")
+            storePassword = "VaultZeroReleaseKey2026!"
+            keyAlias = "vaultzero"
+            keyPassword = "VaultZeroReleaseKey2026!"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -33,7 +44,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"

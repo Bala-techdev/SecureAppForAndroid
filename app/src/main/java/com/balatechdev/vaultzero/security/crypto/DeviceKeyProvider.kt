@@ -130,15 +130,49 @@ class AndroidKeystoreDeviceKeyProvider(
 
     override fun encrypt(plaintext: ByteArray, associatedData: ByteArray?): EncryptedPayload {
         val key = getSecretKey()
-        return encryptionService.encrypt(plaintext, key.encoded ?: throw CryptoException("Key bytes inaccessible"), associatedData)
+        try {
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key)
+            val nonce = cipher.iv ?: ByteArray(12).also { secureRandom.nextBytes(it) }
+            if (associatedData != null && associatedData.isNotEmpty()) {
+                cipher.updateAAD(associatedData)
+            }
+            val ciphertextAndTag = cipher.doFinal(plaintext)
+            return EncryptedPayload(nonce = nonce, ciphertextAndTag = ciphertextAndTag)
+        } catch (e: Exception) {
+            throw CryptoException("Android Keystore encryption failed: ${e.message}", e)
+        }
     }
 
     override fun decrypt(payload: EncryptedPayload, associatedData: ByteArray?): ByteArray {
         val key = getSecretKey()
-        return decryptionService.decrypt(payload, key.encoded ?: throw CryptoException("Key bytes inaccessible"), associatedData)
+        try {
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            val spec = javax.crypto.spec.GCMParameterSpec(128, payload.nonce)
+            cipher.init(javax.crypto.Cipher.DECRYPT_MODE, key, spec)
+            if (associatedData != null && associatedData.isNotEmpty()) {
+                cipher.updateAAD(associatedData)
+            }
+            return cipher.doFinal(payload.ciphertextAndTag)
+        } catch (e: javax.crypto.AEADBadTagException) {
+            throw CryptoAuthException("Android Keystore decryption tag mismatch or data corrupted", e)
+        } catch (e: Exception) {
+            throw CryptoException("Android Keystore decryption failed: ${e.message}", e)
+        }
     }
 
-    override fun isHardwareBacked(): Boolean = true
+    override fun isHardwareBacked(): Boolean {
+        return try {
+            val key = getSecretKey()
+            val factory = javax.crypto.SecretKeyFactory.getInstance(key.algorithm, ANDROID_KEYSTORE)
+            val keyInfoClass = Class.forName("android.security.keystore.KeyInfo")
+            val keyInfo = factory.getKeySpec(key, keyInfoClass as Class<out java.security.spec.KeySpec>)
+            val isInsideSecureHardwareMethod = keyInfoClass.getMethod("isInsideSecureHardware")
+            isInsideSecureHardwareMethod.invoke(keyInfo) as Boolean
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     override fun rotateKey() {
         deleteKey()

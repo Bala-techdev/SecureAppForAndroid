@@ -61,6 +61,7 @@ import com.balatechdev.vaultzero.data.model.DocumentCategory
 import com.balatechdev.vaultzero.data.repository.DocumentRepository
 import com.balatechdev.vaultzero.security.crypto.DocumentCryptoEngine
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
 fun AddDocumentScreen(
@@ -73,20 +74,24 @@ fun AddDocumentScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
-    var title by remember { mutableStateOf("") }
-    var selectedFileName by remember { mutableStateOf("tax_declaration_2025.pdf") }
-    var selectedFileSize by remember { mutableStateOf("2.4 MB") }
-    var selectedCategoryId by remember { mutableStateOf(DocumentCategory.BANKING.id) }
-    var notes by remember { mutableStateOf("") }
-    var isFavorite by remember { mutableStateOf(false) }
+   var selectedUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedUri = selectedUriString?.let { Uri.parse(it) }
+
+    var title by rememberSaveable { mutableStateOf("") }
+    var selectedFileName by rememberSaveable { mutableStateOf("Select a document") }
+    var selectedFileSize by rememberSaveable { mutableStateOf("No file selected") }
+    var selectedCategoryId by rememberSaveable {
+        mutableStateOf(DocumentCategory.BANKING.id)
+    }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var isFavorite by rememberSaveable { mutableStateOf(false) }
 
     // SAF Document Picker Launcher
     val documentPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedUri = uri
+            selectedUriString = uri.toString()
             var displayName = "selected_document"
             var fileSize = 0L
 
@@ -124,15 +129,13 @@ fun AddDocumentScreen(
         if (title.isBlank()) return
         try {
             if (repository != null) {
-                val dummyFallbackKey = ByteArray(32) { (it * 7).toByte() }
                 if (selectedUri != null) {
                     repository.importFromUri(
                         context = context,
                         uri = selectedUri!!,
                         title = title.trim(),
                         categoryId = selectedCategoryId,
-                        notes = notes.trim(),
-                        masterKey = dummyFallbackKey
+                        notes = notes.trim()
                     )
                 } else {
                     val sampleContent = "Secure encrypted payload for $title\nOriginal: $selectedFileName".toByteArray(Charsets.UTF_8)
@@ -141,8 +144,7 @@ fun AddDocumentScreen(
                         title = title.trim(),
                         fileName = selectedFileName,
                         categoryId = selectedCategoryId,
-                        notes = notes.trim(),
-                        masterKey = dummyFallbackKey
+                        notes = notes.trim()
                     )
                 }
             }
@@ -314,11 +316,11 @@ fun AddDocumentScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Button(
+          Button(
                 onClick = {
-                    if (title.isNotBlank()) onSaveSuccess()
+                    handleSave()
                 },
-                enabled = title.isNotBlank(),
+                enabled = title.isNotBlank() && selectedUri != null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

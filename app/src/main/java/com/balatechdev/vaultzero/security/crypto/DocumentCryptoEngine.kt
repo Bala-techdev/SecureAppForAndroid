@@ -33,6 +33,7 @@ object DocumentCryptoEngine {
     const val NONCE_LENGTH_BYTES = 12   // 96 bits
     const val TAG_LENGTH_BITS = 128     // 16 bytes
     const val BUFFER_SIZE = 64 * 1024   // 64 KB streaming buffer
+    const val MAX_FILE_SIZE_BYTES: Long = 100 * 1024 * 1024L // 100 MB DoS Protection Limit
 
     // 5-byte magic header: "V0DOC"
     val MAGIC_HEADER = byteArrayOf(0x56, 0x30, 0x44, 0x4F, 0x43)
@@ -129,6 +130,9 @@ object DocumentCryptoEngine {
         try {
             while (input.read(buffer).also { bytesRead = it } != -1) {
                 totalBytesRead += bytesRead
+                if (totalBytesRead > MAX_FILE_SIZE_BYTES) {
+                    throw IllegalArgumentException("Document exceeds maximum allowed size limit of 100 MB")
+                }
                 val outputChunk = cipher.update(buffer, 0, bytesRead)
                 if (outputChunk != null && outputChunk.isNotEmpty()) {
                     output.write(outputChunk)
